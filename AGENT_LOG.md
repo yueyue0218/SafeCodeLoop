@@ -43,3 +43,41 @@ TDD 记录：
 
 - 冷启动验证提出的 packaging/entry point 问题是有效的；如果没有提前修订，T2.1/T2.2 会出现实现口径不一致。
 - CLI 模块入口需要同时支持函数调用和 `python -m` 执行，这是后续 release 可用性的基础。
+
+## 2026-08-09 23:25 · T3.1 · Action Schema 与 Parser
+
+触发的流程：
+
+- 继续按 `PLAN.md` 执行 Phase 3。
+- 遵循 TDD：先写 `tests/test_actions.py`，再实现 `src/safecodeloop/actions.py`。
+
+完成内容：
+
+- 新增 `tests/test_actions.py`。
+- 新增 `src/safecodeloop/actions.py`。
+- 定义 `Action` dataclass。
+- 定义 `ActionParseError`。
+- 实现 `parse_action(raw_response)`。
+- 支持 action：
+  - `list_files`
+  - `read_file`
+  - `write_file`
+  - `run_command`
+  - `remember`
+  - `finish`
+  - `request_approval`
+
+TDD 记录：
+
+- 红灯：首次运行 `python -m pytest tests/test_actions.py`，失败原因是 `ModuleNotFoundError: No module named 'safecodeloop.actions'`。
+- 绿灯：补充 `actions.py` 后，`tests/test_actions.py` 结果为 `7 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `11 passed in 0.33s`。
+
+人工干预：
+
+- 选择使用 JSON 作为 LLM action 输出格式，符合 SPEC 中“解析 LLM 输出为 typed action”的要求。
+- 当前 parser 保持最小实现：只做 action 类型、必要字段和 JSON 格式校验；路径规范化留到后续工具/护栏任务中处理。
+
+教训：
+
+- T3.1 的边界应保持清楚：parser 不执行动作，也不判断安全，只负责把 LLM 输出变成确定性结构或错误。

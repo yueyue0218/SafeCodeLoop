@@ -205,6 +205,8 @@ python -m safecodeloop --help
 
 ### T3.1 实现 Action Schema 与 Parser
 
+状态：已完成。
+
 目标：把 LLM 输出解析成结构化 action。
 
 涉及文件：
@@ -227,6 +229,12 @@ python -m safecodeloop --help
 ```bash
 python -m pytest tests/test_actions.py
 ```
+
+实际验证：
+
+- 红灯：首次运行 `python -m pytest tests/test_actions.py` 时，`ModuleNotFoundError: No module named 'safecodeloop.actions'`。
+- 绿灯：新增 `src/safecodeloop/actions.py` 后，`tests/test_actions.py` 结果为 `7 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `11 passed`。
 
 依赖：T2.1。
 
