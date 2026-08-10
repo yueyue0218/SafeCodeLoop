@@ -446,6 +446,8 @@ python -m pytest tests/test_guardrails.py
 
 ### T4.5 串联 Loop、Guardrails 与 Tools
 
+状态：已完成。
+
 目标：主循环中先护栏检查，再工具执行。
 
 涉及文件：
@@ -464,6 +466,12 @@ python -m pytest tests/test_guardrails.py
 ```bash
 python -m pytest tests/test_loop_tools_guardrails.py
 ```
+
+实际验证：
+
+- 红灯：首次运行 `python -m pytest tests/test_loop_tools_guardrails.py` 时，3 个测试失败，原因是 `AgentLoop.__init__()` 不支持 `tool_registry` 和 `guardrail_engine` 参数。
+- 绿灯：扩展 `src/safecodeloop/loop.py` 后，`tests/test_loop_tools_guardrails.py` 结果为 `3 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `41 passed`。
 
 依赖：T3.3、T4.2、T4.3、T4.4。
 

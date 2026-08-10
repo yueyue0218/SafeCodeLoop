@@ -292,3 +292,39 @@ TDD 记录：
 教训：
 
 - Guardrail 应该独立于工具执行器存在。这样 T4.5 接入主循环时，可以先判断动作，再决定是否调用工具，形成真正的执行前治理。
+
+## 2026-08-11 01:50 · T4.5 · 串联 Loop、Guardrails 与 Tools
+
+触发的流程：
+
+- 继续执行 `PLAN.md` 的 T4.5。
+- 遵循 TDD：先写 `tests/test_loop_tools_guardrails.py`，再扩展 `src/safecodeloop/loop.py`。
+
+完成内容：
+
+- 新增 `tests/test_loop_tools_guardrails.py`。
+- 扩展 `AgentLoop.__init__`，新增可选参数：
+  - `tool_registry`
+  - `guardrail_engine`
+- 主循环中非 `finish` action 的处理顺序改为：
+  - 先解析 action。
+  - 如果配置了 guardrail，先执行 guardrail check。
+  - `blocked` 和 `needs_approval` 会立即停止，不调用工具。
+  - `allowed` 后再调用 tool registry。
+  - tool result 转成 observation 并回灌下一轮 LLM。
+
+TDD 记录：
+
+- 红灯：首次运行 `python -m pytest tests/test_loop_tools_guardrails.py`，3 个测试失败，原因是 `AgentLoop.__init__()` 不支持 `tool_registry` 和 `guardrail_engine` 参数。
+- 绿灯：补充主循环串联逻辑后，`tests/test_loop_tools_guardrails.py` 结果为 `3 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `41 passed in 3.25s`。
+
+人工干预：
+
+- 为了保持旧测试兼容，`tool_registry` 和 `guardrail_engine` 都是可选参数；不传时仍保留“tools are not connected yet”的旧行为。
+- 对 `finish` action 不执行工具和护栏检查，直接结束。
+- 对 `blocked` 和 `needs_approval` 都返回明确 run status，方便后续 CLI 用退出码和提示文本表达。
+
+教训：
+
+- T4.5 是从“零件可用”到“harness 可用”的关键连接点。工具本身不应该承担流程治理，主循环必须显式负责执行顺序。
