@@ -275,6 +275,8 @@ python -m pytest tests/test_llm.py
 
 ### T3.3 实现主循环骨架
 
+状态：已完成。
+
 目标：完成 `LLM -> parse action -> finish/max_steps/parse_error` 的最小闭环。
 
 涉及文件：
@@ -293,6 +295,12 @@ python -m pytest tests/test_llm.py
 ```bash
 python -m pytest tests/test_loop.py
 ```
+
+实际验证：
+
+- 红灯：首次运行 `python -m pytest tests/test_loop.py` 时，`ModuleNotFoundError: No module named 'safecodeloop.loop'`。
+- 绿灯：新增 `src/safecodeloop/loop.py` 后，`tests/test_loop.py` 结果为 `3 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `19 passed`。
 
 依赖：T3.1、T3.2。
 

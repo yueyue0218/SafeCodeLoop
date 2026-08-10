@@ -117,3 +117,39 @@ TDD 记录：
 教训：
 
 - mock LLM 不是测试替身这么简单，它是后续主循环、护栏和反馈闭环所有确定性测试的基础。
+
+## 2026-08-11 00:25 · T3.3 · 主 Agent Loop 骨架
+
+触发的流程：
+
+- 继续执行 `PLAN.md` 的 T3.3。
+- 遵循 TDD：先写 `tests/test_loop.py`，再实现 `src/safecodeloop/loop.py`。
+
+完成内容：
+
+- 新增 `tests/test_loop.py`。
+- 新增 `src/safecodeloop/loop.py`。
+- 定义 `LoopStep`。
+- 定义 `RunResult`。
+- 实现 `AgentLoop.run(task)` 的最小闭环：
+  - 调用 `LLMClient.generate`。
+  - 使用 `parse_action` 解析 LLM 输出。
+  - 处理 `finish`。
+  - 将 parse error 转成 observation 并回灌下一轮。
+  - 达到最大步数时返回 `max_steps`。
+
+TDD 记录：
+
+- 红灯：首次运行 `python -m pytest tests/test_loop.py`，失败原因是 `ModuleNotFoundError: No module named 'safecodeloop.loop'`。
+- 绿灯：补充 `loop.py` 后，`tests/test_loop.py` 结果为 `3 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `19 passed in 0.33s`。
+
+人工干预：
+
+- 当前主循环不执行工具，也不做 guardrail 判断。
+- 对非 `finish` action 只记录 `action_parsed` observation，并提示 tools 尚未连接。
+- 这样可以把 T3.3 限定在核心循环骨架，避免提前混入 T4 的工具与护栏职责。
+
+教训：
+
+- 主循环的第一版应保持小：先证明 LLM、parser、step log、parse-error feedback 和 max-step 停机能工作，再逐步接入工具和治理。
