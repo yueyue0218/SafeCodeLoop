@@ -411,6 +411,8 @@ python -m pytest tests/test_command_tool.py
 
 ### T4.4 实现 Guardrail Engine
 
+状态：已完成。
+
 目标：执行前判断 action 是允许、拦截还是需要审批。
 
 涉及文件：
@@ -431,6 +433,12 @@ python -m pytest tests/test_command_tool.py
 ```bash
 python -m pytest tests/test_guardrails.py
 ```
+
+实际验证：
+
+- 红灯：首次运行 `python -m pytest tests/test_guardrails.py` 时，`ModuleNotFoundError: No module named 'safecodeloop.guardrails'`。
+- 绿灯：新增 `src/safecodeloop/guardrails.py` 后，`tests/test_guardrails.py` 结果为 `5 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `38 passed`。
 
 依赖：T3.1。
 

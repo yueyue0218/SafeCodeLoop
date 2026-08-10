@@ -253,3 +253,42 @@ TDD 记录：
 教训：
 
 - 命令工具必须把失败也当成可观察结果，而不是 Python 异常。这样后续 agent loop 才能把测试失败、命令失败、超时统一回灌给 LLM。
+
+## 2026-08-11 01:30 · T4.4 · Guardrail Engine
+
+触发的流程：
+
+- 继续执行 `PLAN.md` 的 T4.4。
+- 遵循 TDD：先写 `tests/test_guardrails.py`，再实现 `src/safecodeloop/guardrails.py`。
+
+完成内容：
+
+- 新增 `tests/test_guardrails.py`。
+- 新增 `src/safecodeloop/guardrails.py`。
+- 定义 `GuardrailDecision`，支持：
+  - `allowed`
+  - `blocked`
+  - `needs_approval`
+- 定义 `GuardrailEngine.check(action)`。
+- 实现基础规则：
+  - 拦截 `rm -rf /`。
+  - 拦截数据库删除命令。
+  - 拦截读写 workspace 外路径。
+  - 安装依赖命令返回 `needs_approval`。
+  - workspace 内安全读文件允许通过。
+
+TDD 记录：
+
+- 红灯：首次运行 `python -m pytest tests/test_guardrails.py`，失败原因是 `ModuleNotFoundError: No module named 'safecodeloop.guardrails'`。
+- 绿灯：补充 `guardrails.py` 后，`tests/test_guardrails.py` 结果为 `5 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `38 passed in 3.22s`。
+
+人工干预：
+
+- 当前规则采用保守的静态检查，不实际执行命令。
+- 文件路径检查复用与工具层一致的 `Path.resolve()` 思路，保证 workspace 外路径在执行前就被拦截。
+- 依赖安装不是直接禁止，而是进入 `needs_approval`，因为开发过程中安装依赖可能合理，但需要人工确认。
+
+教训：
+
+- Guardrail 应该独立于工具执行器存在。这样 T4.5 接入主循环时，可以先判断动作，再决定是否调用工具，形成真正的执行前治理。
