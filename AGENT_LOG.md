@@ -186,3 +186,38 @@ TDD 记录：
 教训：
 
 - 工具系统需要先建立统一结果模型。后续文件工具、命令工具、主循环 observation 都可以复用 `ToolResult`，避免每个工具各自定义返回格式。
+
+## 2026-08-11 00:55 · T4.2 · 文件工具
+
+触发的流程：
+
+- 继续执行 `PLAN.md` 的 T4.2。
+- 遵循 TDD：先写 `tests/test_file_tools.py`，再扩展 `src/safecodeloop/tools.py`。
+
+完成内容：
+
+- 新增 `tests/test_file_tools.py`。
+- 扩展 `src/safecodeloop/tools.py`。
+- 新增 `Workspace` 路径边界辅助类。
+- 新增 `create_file_tool_registry(workspace_root)`。
+- 注册文件工具：
+  - `list_files`
+  - `read_file`
+  - `write_file`
+
+TDD 记录：
+
+- 红灯：首次运行 `python -m pytest tests/test_file_tools.py`，失败原因是 `ImportError: cannot import name 'create_file_tool_registry'`。
+- 绿灯：补充文件工具后，`tests/test_file_tools.py` 结果为 `5 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `28 passed in 0.44s`。
+
+人工干预：
+
+- 路径解析统一通过 `Path.resolve()` 和 workspace 父路径检查完成。
+- `list_files` 返回 POSIX 风格相对路径，避免 Windows 路径分隔符影响测试和日志。
+- `write_file` 会自动创建父目录，但仅限 workspace 内。
+- 读/写工作区外路径当前在文件工具层拒绝；后续 T4.4 仍会实现独立 guardrail，在执行前拦截。
+
+教训：
+
+- 文件工具本身需要边界检查，即使后续还有 guardrail。这样可以形成双层防护：工具层保证不会越界，guardrail 层保证危险动作不会进入执行器。

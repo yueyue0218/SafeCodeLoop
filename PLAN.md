@@ -343,6 +343,8 @@ python -m pytest tests/test_tools.py
 
 ### T4.2 实现文件工具
 
+状态：已完成。
+
 目标：支持工作区内列文件、读文件、写文件。
 
 涉及文件：
@@ -362,6 +364,12 @@ python -m pytest tests/test_tools.py
 ```bash
 python -m pytest tests/test_file_tools.py
 ```
+
+实际验证：
+
+- 红灯：首次运行 `python -m pytest tests/test_file_tools.py` 时，`ImportError: cannot import name 'create_file_tool_registry'`。
+- 绿灯：扩展 `src/safecodeloop/tools.py` 后，`tests/test_file_tools.py` 结果为 `5 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `28 passed`。
 
 依赖：T4.1。
 
