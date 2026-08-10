@@ -310,6 +310,8 @@ python -m pytest tests/test_loop.py
 
 ### T4.1 实现工具注册表
 
+状态：已完成。
+
 目标：根据 action 调度工具。
 
 涉及文件：
@@ -328,6 +330,12 @@ python -m pytest tests/test_loop.py
 ```bash
 python -m pytest tests/test_tools.py
 ```
+
+实际验证：
+
+- 红灯：首次运行 `python -m pytest tests/test_tools.py` 时，`ModuleNotFoundError: No module named 'safecodeloop.tools'`。
+- 绿灯：新增 `src/safecodeloop/tools.py` 后，`tests/test_tools.py` 结果为 `4 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `23 passed`。
 
 依赖：T3.1。
 

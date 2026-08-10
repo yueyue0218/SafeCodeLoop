@@ -153,3 +153,36 @@ TDD 记录：
 教训：
 
 - 主循环的第一版应保持小：先证明 LLM、parser、step log、parse-error feedback 和 max-step 停机能工作，再逐步接入工具和治理。
+
+## 2026-08-11 00:40 · T4.1 · 工具注册表
+
+触发的流程：
+
+- 进入 `PLAN.md` 的 Phase 4。
+- 遵循 TDD：先写 `tests/test_tools.py`，再实现 `src/safecodeloop/tools.py`。
+
+完成内容：
+
+- 新增 `tests/test_tools.py`。
+- 新增 `src/safecodeloop/tools.py`。
+- 定义 `ToolResult`。
+- 定义 `ToolHandler`。
+- 实现 `ToolRegistry.register(name, handler)`。
+- 实现 `ToolRegistry.dispatch(action)`。
+- 实现 `ToolResult.to_observation(tool_name)`。
+
+TDD 记录：
+
+- 红灯：首次运行 `python -m pytest tests/test_tools.py`，失败原因是 `ModuleNotFoundError: No module named 'safecodeloop.tools'`。
+- 绿灯：补充 `tools.py` 后，`tests/test_tools.py` 结果为 `4 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `23 passed in 0.42s`。
+
+人工干预：
+
+- T4.1 只实现注册和分发，不做真实文件/命令工具。
+- 工具异常被转换为结构化 `ToolResult`，避免单个工具异常直接打断 harness。
+- 工作区路径和命令安全边界留给 T4.2/T4.4。
+
+教训：
+
+- 工具系统需要先建立统一结果模型。后续文件工具、命令工具、主循环 observation 都可以复用 `ToolResult`，避免每个工具各自定义返回格式。
