@@ -481,6 +481,8 @@ python -m pytest tests/test_loop_tools_guardrails.py
 
 ### T5.1 实现 Validator 和 Feedback Classifier
 
+状态：已完成。
+
 目标：把测试结果转换成结构化反馈。
 
 涉及文件：
@@ -500,6 +502,12 @@ python -m pytest tests/test_loop_tools_guardrails.py
 ```bash
 python -m pytest tests/test_feedback.py
 ```
+
+实际验证：
+
+- 红灯：首次运行 `python -m pytest tests/test_feedback.py` 时，`ModuleNotFoundError: No module named 'safecodeloop.feedback'`。
+- 绿灯：新增 `src/safecodeloop/feedback.py` 后，`tests/test_feedback.py` 结果为 `5 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `46 passed`。
 
 依赖：T4.3。
 

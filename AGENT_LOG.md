@@ -328,3 +328,39 @@ TDD 记录：
 教训：
 
 - T4.5 是从“零件可用”到“harness 可用”的关键连接点。工具本身不应该承担流程治理，主循环必须显式负责执行顺序。
+
+## 2026-08-11 02:10 · T5.1 · Validator 和 Feedback Classifier
+
+触发的流程：
+
+- 进入 `PLAN.md` 的 Phase 5。
+- 遵循 TDD：先写 `tests/test_feedback.py`，再实现 `src/safecodeloop/feedback.py`。
+
+完成内容：
+
+- 新增 `tests/test_feedback.py`。
+- 新增 `src/safecodeloop/feedback.py`。
+- 定义 `Feedback` 数据结构。
+- 定义 `Validator.validate(result)`。
+- 实现 `classify_tool_result(result)`，支持分类：
+  - `pass`
+  - `test_failure`
+  - `syntax_error`
+  - `timeout`
+  - `command_failure`
+
+TDD 记录：
+
+- 红灯：首次运行 `python -m pytest tests/test_feedback.py`，失败原因是 `ModuleNotFoundError: No module named 'safecodeloop.feedback'`。
+- 绿灯：补充反馈分类器后，`tests/test_feedback.py` 结果为 `5 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `46 passed in 3.16s`。
+
+人工干预：
+
+- T5.1 只做分类，不直接修改主循环。
+- 输入复用 T4.3 的 `ToolResult`，避免引入新的命令执行结果格式。
+- `Feedback.to_observation()` 预留给 T5.2 使用，后续可以直接把结构化反馈回灌给 LLM。
+
+教训：
+
+- 反馈分类器把“命令输出文本”变成“agent 可理解的错误类型”。这一步是反馈闭环的前置条件，否则 LLM 只能看到一大段原始日志，难以稳定修正。
