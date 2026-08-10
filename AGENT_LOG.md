@@ -221,3 +221,35 @@ TDD 记录：
 教训：
 
 - 文件工具本身需要边界检查，即使后续还有 guardrail。这样可以形成双层防护：工具层保证不会越界，guardrail 层保证危险动作不会进入执行器。
+
+## 2026-08-11 01:10 · T4.3 · 命令工具
+
+触发的流程：
+
+- 继续执行 `PLAN.md` 的 T4.3。
+- 遵循 TDD：先写 `tests/test_command_tool.py`，再扩展 `src/safecodeloop/tools.py`。
+
+完成内容：
+
+- 新增 `tests/test_command_tool.py`。
+- 扩展 `src/safecodeloop/tools.py`。
+- 新增 `create_command_tool_registry(workspace_root, timeout_seconds=10.0)`。
+- 注册命令工具：
+  - `run_command`
+
+TDD 记录：
+
+- 红灯：首次运行 `python -m pytest tests/test_command_tool.py`，失败原因是 `ImportError: cannot import name 'create_command_tool_registry'`。
+- 绿灯：补充命令工具后，`tests/test_command_tool.py` 结果为 `5 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `33 passed in 3.03s`。
+
+人工干预：
+
+- 命令执行使用 `subprocess.run`，在指定 workspace 中运行，并捕获 `stdout`、`stderr` 和退出码。
+- 非 0 退出码不会抛异常，而是返回结构化 `ToolResult(ok=False)`，方便后续反馈分类器处理。
+- 超时会返回 `command timed out` 和 `timeout_seconds`。
+- 当前 T4.3 只实现命令执行器；危险命令拦截还没有做，留给 T4.4 Guardrail Engine。
+
+教训：
+
+- 命令工具必须把失败也当成可观察结果，而不是 Python 异常。这样后续 agent loop 才能把测试失败、命令失败、超时统一回灌给 LLM。

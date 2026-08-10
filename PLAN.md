@@ -377,6 +377,8 @@ python -m pytest tests/test_file_tools.py
 
 ### T4.3 实现命令工具
 
+状态：已完成。
+
 目标：运行受控命令并捕获输出。
 
 涉及文件：
@@ -396,6 +398,12 @@ python -m pytest tests/test_file_tools.py
 ```bash
 python -m pytest tests/test_command_tool.py
 ```
+
+实际验证：
+
+- 红灯：首次运行 `python -m pytest tests/test_command_tool.py` 时，`ImportError: cannot import name 'create_command_tool_registry'`。
+- 绿灯：扩展 `src/safecodeloop/tools.py` 后，`tests/test_command_tool.py` 结果为 `5 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `33 passed`。
 
 依赖：T4.1。
 

@@ -1,3 +1,4 @@
+import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -102,4 +103,52 @@ def create_file_tool_registry(workspace_root: str | Path) -> ToolRegistry:
     registry.register("list_files", list_files)
     registry.register("read_file", read_file)
     registry.register("write_file", write_file)
+    return registry
+
+
+def create_command_tool_registry(workspace_root: str | Path, timeout_seconds: float = 10.0) -> ToolRegistry:
+    workspace = Workspace(workspace_root)
+    registry = ToolRegistry()
+
+    def run_command(arguments: dict[str, Any]) -> ToolResult:
+        command = arguments.get("command")
+        if not command:
+            return ToolResult(ok=False, error="missing required field: command")
+
+        try:
+            completed = subprocess.run(
+                str(command),
+                cwd=workspace.root,
+                shell=True,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout_seconds,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            return ToolResult(
+                ok=False,
+                data={
+                    "stdout": exc.stdout or "",
+                    "stderr": exc.stderr or "",
+                    "timeout_seconds": timeout_seconds,
+                },
+                error="command timed out",
+            )
+
+        data = {
+            "exit_code": completed.returncode,
+            "stdout": completed.stdout,
+            "stderr": completed.stderr,
+        }
+        if completed.returncode != 0:
+            return ToolResult(
+                ok=False,
+                data=data,
+                error=f"command exited with code {completed.returncode}",
+            )
+        return ToolResult(ok=True, data=data)
+
+    registry.register("run_command", run_command)
     return registry
