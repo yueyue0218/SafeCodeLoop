@@ -81,3 +81,39 @@ TDD 记录：
 教训：
 
 - T3.1 的边界应保持清楚：parser 不执行动作，也不判断安全，只负责把 LLM 输出变成确定性结构或错误。
+
+## 2026-08-11 00:10 · T3.2 · LLM Interface 与 MockLLM
+
+触发的流程：
+
+- 继续执行 `PLAN.md` 的 T3.2。
+- 遵循 TDD：先写 `tests/test_llm.py`，再实现 `src/safecodeloop/llm.py`。
+
+完成内容：
+
+- 新增 `tests/test_llm.py`。
+- 新增 `src/safecodeloop/llm.py`。
+- 定义 `LLMResponse`。
+- 定义 `LLMError`。
+- 定义 `LLMClient` protocol。
+- 实现 `MockLLM`：
+  - 按脚本顺序返回响应。
+  - 脚本耗尽时抛出清晰错误。
+  - 记录调用历史。
+  - 对 secret-like 内容做脱敏。
+
+TDD 记录：
+
+- 红灯：首次运行 `python -m pytest tests/test_llm.py`，失败原因是 `ModuleNotFoundError: No module named 'safecodeloop.llm'`。
+- 绿灯：补充 `llm.py` 后，`tests/test_llm.py` 结果为 `5 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `16 passed in 0.32s`。
+
+人工干预：
+
+- 当前只实现 mock LLM 和接口抽象，不接真实 LLM。
+- 真实 LLM adapter 留到凭据管理和真实 provider 配置稳定后再做。
+- 添加了基础 secret redaction，避免调用历史记录中出现 `OPENAI_API_KEY=...` 或 `sk-...` 形式内容。
+
+教训：
+
+- mock LLM 不是测试替身这么简单，它是后续主循环、护栏和反馈闭环所有确定性测试的基础。

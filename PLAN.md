@@ -242,6 +242,8 @@ python -m pytest tests/test_actions.py
 
 ### T3.2 实现 LLM Interface 与 MockLLM
 
+状态：已完成。
+
 目标：让测试不依赖真实 LLM。
 
 涉及文件：
@@ -260,6 +262,12 @@ python -m pytest tests/test_actions.py
 ```bash
 python -m pytest tests/test_llm.py
 ```
+
+实际验证：
+
+- 红灯：首次运行 `python -m pytest tests/test_llm.py` 时，`ModuleNotFoundError: No module named 'safecodeloop.llm'`。
+- 绿灯：新增 `src/safecodeloop/llm.py` 后，`tests/test_llm.py` 结果为 `5 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `16 passed`。
 
 依赖：T2.1。
 
