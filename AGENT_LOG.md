@@ -364,3 +364,35 @@ TDD 记录：
 教训：
 
 - 反馈分类器把“命令输出文本”变成“agent 可理解的错误类型”。这一步是反馈闭环的前置条件，否则 LLM 只能看到一大段原始日志，难以稳定修正。
+
+## 2026-08-11 02:30 · T5.2 · 反馈回灌进主循环
+
+触发的流程：
+
+- 继续执行 `PLAN.md` 的 T5.2。
+- 遵循 TDD：先写 `tests/test_feedback_loop.py`，再扩展 `src/safecodeloop/loop.py`。
+
+完成内容：
+
+- 新增 `tests/test_feedback_loop.py`。
+- 扩展 `AgentLoop.__init__`，新增可选参数 `validator`。
+- 当 `run_command` action 执行完成且配置了 `validator` 时：
+  - 将 `ToolResult` 交给 `Validator.validate()`。
+  - 把 `Feedback.to_observation()` 的结构化结果作为 step observation。
+  - 将 feedback observation 回灌给下一轮 LLM。
+
+TDD 记录：
+
+- 红灯：首次运行 `python -m pytest tests/test_feedback_loop.py`，失败原因是 `AgentLoop.__init__()` 不支持 `validator` 参数。
+- 绿灯：补充反馈回灌逻辑后，`tests/test_feedback_loop.py` 结果为 `1 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `47 passed in 3.20s`。
+
+人工干预：
+
+- `validator` 是可选参数，不传时保持 T4.5 的旧行为。
+- 只对 `run_command` 结果做反馈分类，避免把 `write_file`、`read_file` 等文件工具误判成命令反馈。
+- 测试中模拟第一次 pytest 失败、第二次通过，证明 mock LLM 能在下一轮收到 `test_failure` feedback 后写出修正。
+
+教训：
+
+- 反馈回灌不能只把原始 stdout/stderr 塞回上下文；结构化的 `feedback_kind` 能让后续 demo 更稳定，也更容易向助教解释“自我修正机制”到底在哪里。

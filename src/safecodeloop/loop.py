@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from safecodeloop.actions import Action, ActionParseError, parse_action
+from safecodeloop.feedback import Validator
 from safecodeloop.guardrails import GuardrailEngine
 from safecodeloop.llm import LLMClient
 from safecodeloop.tools import ToolRegistry
@@ -29,6 +30,7 @@ class AgentLoop:
         max_steps: int = 5,
         tool_registry: ToolRegistry | None = None,
         guardrail_engine: GuardrailEngine | None = None,
+        validator: Validator | None = None,
     ):
         if max_steps < 1:
             raise ValueError("max_steps must be at least 1")
@@ -36,6 +38,7 @@ class AgentLoop:
         self.max_steps = max_steps
         self.tool_registry = tool_registry
         self.guardrail_engine = guardrail_engine
+        self.validator = validator
 
     def run(self, task: str) -> RunResult:
         steps: list[LoopStep] = []
@@ -123,7 +126,10 @@ class AgentLoop:
                 continue
 
             tool_result = self.tool_registry.dispatch(action)
-            observation = tool_result.to_observation(action.type)
+            if self.validator is not None and action.type == "run_command":
+                observation = self.validator.validate(tool_result).to_observation()
+            else:
+                observation = tool_result.to_observation(action.type)
             steps.append(
                 LoopStep(
                     index=index,

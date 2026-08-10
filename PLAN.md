@@ -515,6 +515,8 @@ python -m pytest tests/test_feedback.py
 
 ### T5.2 将反馈回灌进主循环
 
+状态：已完成。
+
 目标：展示 agent 根据测试反馈修正下一步动作。
 
 涉及文件：
@@ -534,6 +536,12 @@ python -m pytest tests/test_feedback.py
 ```bash
 python -m pytest tests/test_feedback_loop.py
 ```
+
+实际验证：
+
+- 红灯：首次运行 `python -m pytest tests/test_feedback_loop.py` 时，测试失败，原因是 `AgentLoop.__init__()` 不支持 `validator` 参数。
+- 绿灯：扩展 `src/safecodeloop/loop.py` 后，`tests/test_feedback_loop.py` 结果为 `1 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `47 passed`。
 
 依赖：T4.5、T5.1。
 
