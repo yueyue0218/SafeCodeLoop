@@ -396,3 +396,38 @@ TDD 记录：
 教训：
 
 - 反馈回灌不能只把原始 stdout/stderr 塞回上下文；结构化的 `feedback_kind` 能让后续 demo 更稳定，也更容易向助教解释“自我修正机制”到底在哪里。
+
+## 2026-08-11 02:50 · T5.3 · Memory Store
+
+触发的流程：
+
+- 继续执行 `PLAN.md` 的 T5.3。
+- 遵循 TDD：先写 `tests/test_memory.py`，再实现 `src/safecodeloop/memory.py`。
+
+完成内容：
+
+- 新增 `tests/test_memory.py`。
+- 新增 `src/safecodeloop/memory.py`。
+- 定义 `MemoryItem`。
+- 定义 `MemoryStore`，支持：
+  - `remember(content, kind, priority)`
+  - `all()`
+  - `retrieve(query, limit)`
+- 记忆以 JSON 文件持久化。
+- 记忆内容写入前复用 `redact_secrets()` 做密钥脱敏。
+
+TDD 记录：
+
+- 红灯：首次运行 `python -m pytest tests/test_memory.py`，失败原因是 `ModuleNotFoundError: No module named 'safecodeloop.memory'`。
+- 绿灯：补充 Memory Store 后，`tests/test_memory.py` 结果为 `5 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `52 passed in 3.27s`。
+
+人工干预：
+
+- 检索策略采用最小可解释规则：先按 query 命中词数量，再按最近写入，再按 priority 排序。
+- 对疑似密钥不直接拒绝，而是脱敏后保存；这样可以保留“用户提到过凭据配置问题”这类事实，同时不泄露明文。
+- 空 JSON 文件按空记忆处理，避免首次创建/异常中断后无法启动。
+
+教训：
+
+- Memory 的价值不是保存一切，而是保存可复用的项目事实。T5.3 先把持久化和脱敏边界定住，T5.4 再考虑如何把相关记忆放进 LLM 上下文。

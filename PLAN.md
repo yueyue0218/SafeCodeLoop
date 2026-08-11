@@ -549,6 +549,8 @@ python -m pytest tests/test_feedback_loop.py
 
 ### T5.3 实现 Memory Store
 
+状态：已完成。
+
 目标：保存和检索项目事实，不保存密钥。
 
 涉及文件：
@@ -567,6 +569,12 @@ python -m pytest tests/test_feedback_loop.py
 ```bash
 python -m pytest tests/test_memory.py
 ```
+
+实际验证：
+
+- 红灯：首次运行 `python -m pytest tests/test_memory.py` 时，`ModuleNotFoundError: No module named 'safecodeloop.memory'`。
+- 绿灯：新增 `src/safecodeloop/memory.py` 后，`tests/test_memory.py` 结果为 `5 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `52 passed`。
 
 依赖：T2.1。
 
