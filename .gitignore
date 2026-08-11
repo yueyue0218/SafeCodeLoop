@@ -9,5 +9,6 @@ build/
 .venv/
 venv/
 .env
+.safecodeloop/
 *.log
 release/

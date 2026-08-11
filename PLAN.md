@@ -648,6 +648,8 @@ python -m pytest tests/test_config.py
 
 ### T5.6 实现凭据命令
 
+状态：已完成。
+
 目标：支持 key 设置、状态、清除，并避免明文泄露。
 
 涉及文件：
@@ -673,6 +675,13 @@ python -m pytest tests/test_config.py
 python -m pytest tests/test_credentials.py
 python -m safecodeloop.cli key status
 ```
+
+实际验证：
+
+- 红灯：首次运行 `python -m pytest tests/test_credentials.py` 时，`ModuleNotFoundError: No module named 'safecodeloop.credentials'`。
+- 绿灯：新增 `src/safecodeloop/credentials.py` 并扩展 `src/safecodeloop/cli.py` 后，`tests/test_credentials.py` 结果为 `5 passed`。
+- CLI 验证：`python -m safecodeloop.cli key status` 输出未配置提示，退出码为 0，未显示明文 key。
+- 回归：运行 `python -m pytest`，全量结果为 `66 passed`。
 
 依赖：T3.2、T2.2。
 

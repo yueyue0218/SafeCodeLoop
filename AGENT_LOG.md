@@ -504,3 +504,39 @@ TDD 记录：
 教训：
 
 - 配置系统不能只是读取 JSON；它必须校验边界，并且真的影响运行行为。T5.5 通过配置 blocked pattern 改变 guardrail 决策，证明配置不是摆设。
+
+## 2026-08-11 03:50 · T5.6 · 凭据命令
+
+触发的流程：
+
+- 继续执行 `PLAN.md` 的 T5.6。
+- 遵循 TDD：先写 `tests/test_credentials.py`，再实现 `src/safecodeloop/credentials.py` 并扩展 CLI。
+
+完成内容：
+
+- 新增 `tests/test_credentials.py`。
+- 新增 `src/safecodeloop/credentials.py`。
+- 扩展 `src/safecodeloop/cli.py` 的 `key` 子命令，支持：
+  - `key status [provider]`
+  - `key set <provider> --value <key>`
+  - `key clear [provider]`
+- 凭据存储默认路径为用户目录下 `.safecodeloop/credentials.json`。
+- 测试中通过 `SAFECODELOOP_CREDENTIALS_PATH` 指向临时文件，避免污染真实用户配置。
+- 状态输出只显示 masked key，不显示明文。
+
+TDD 记录：
+
+- 红灯：首次运行 `python -m pytest tests/test_credentials.py`，失败原因是 `ModuleNotFoundError: No module named 'safecodeloop.credentials'`。
+- 绿灯：补充凭据模块和 CLI key 子命令后，`tests/test_credentials.py` 结果为 `5 passed`。
+- CLI 验证：`python -m safecodeloop.cli key status` 输出未配置提示，退出码为 0。
+- 回归：运行 `python -m pytest`，全量结果为 `66 passed in 3.36s`。
+
+人工干预：
+
+- 当前实现是本地 JSON fallback，不是 OS keyring。
+- CLI 的 `key set` 不打印明文 key，只输出 provider 已 stored。
+- 测试中使用假 key `sk-test-secret`，并断言状态输出不会包含完整明文。
+
+教训：
+
+- 凭据功能即使是 fallback 实现，也要先把“状态不泄露明文”和“测试不污染真实配置”做稳。后续 README 必须明确说明 JSON fallback 的明文风险。
