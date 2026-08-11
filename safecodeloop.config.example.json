@@ -1,0 +1,21 @@
+{
+  "workspaceRoot": ".",
+  "maxSteps": 5,
+  "allowedTools": [
+    "list_files",
+    "read_file",
+    "write_file",
+    "run_command"
+  ],
+  "blockedCommandPatterns": [
+    "rm -rf /",
+    "DROP DATABASE"
+  ],
+  "approvalRequiredPatterns": [
+    "pip install",
+    "npm install"
+  ],
+  "testCommand": "python -m pytest",
+  "modelProvider": "mock",
+  "memoryPath": ".safecodeloop/memory.json"
+}

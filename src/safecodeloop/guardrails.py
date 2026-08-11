@@ -24,8 +24,9 @@ class GuardrailDecision:
 
 
 class GuardrailEngine:
-    def __init__(self, workspace_root: str | Path):
+    def __init__(self, workspace_root: str | Path, blocked_command_patterns: tuple[str, ...] = ()):
         self.workspace_root = Path(workspace_root).resolve()
+        self.blocked_command_patterns = blocked_command_patterns
 
     def check(self, action: Action) -> GuardrailDecision:
         if action.type == "run_command":
@@ -47,6 +48,10 @@ class GuardrailEngine:
 
     def _check_command(self, command: str) -> GuardrailDecision:
         normalized = " ".join(command.lower().split())
+
+        for pattern in self.blocked_command_patterns:
+            if re.search(pattern, command, re.IGNORECASE):
+                return GuardrailDecision.block(f"configured blocked command pattern matched: {pattern}")
 
         if re.search(r"\brm\s+-[^\n;]*r[^\n;]*f\s+/", normalized):
             return GuardrailDecision.block("dangerous command: recursive root deletion")

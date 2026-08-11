@@ -465,3 +465,42 @@ TDD 记录：
 教训：
 
 - 记忆接入不能无脑塞进所有历史。即使是最小实现，也需要相关性检索和预算控制，否则上下文会污染 LLM 判断。
+
+## 2026-08-11 03:30 · T5.5 · Config Loader
+
+触发的流程：
+
+- 继续执行 `PLAN.md` 的 T5.5。
+- 遵循 TDD：先写 `tests/test_config.py`，再实现 `src/safecodeloop/config.py` 并扩展 guardrail。
+
+完成内容：
+
+- 新增 `tests/test_config.py`。
+- 新增 `src/safecodeloop/config.py`。
+- 新增 `safecodeloop.config.example.json`。
+- 定义 `SafeCodeLoopConfig`。
+- 定义 `ConfigError`。
+- 实现 `load_config(path)`，支持：
+  - 默认配置。
+  - JSON 配置覆盖默认值。
+  - unknown field 拒绝。
+  - 非法 `maxSteps` 拒绝。
+  - 非整数 `maxSteps` 拒绝。
+  - list/string 字段校验。
+- 扩展 `GuardrailEngine`，支持配置传入 `blocked_command_patterns`。
+
+TDD 记录：
+
+- 红灯：首次运行 `python -m pytest tests/test_config.py`，失败原因是 `ModuleNotFoundError: No module named 'safecodeloop.config'`。
+- 绿灯：补充配置加载器和可配置 guardrail 后，`tests/test_config.py` 结果为 `6 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `61 passed in 3.24s`。
+
+人工干预：
+
+- 配置文件字段使用 SPEC 中的 camelCase，例如 `maxSteps`、`memoryPath`、`blockedCommandPatterns`。
+- Python 内部 dataclass 使用 snake_case，加载时做字段映射。
+- 不存在或空配置文件返回默认配置，方便 CLI 初次运行。
+
+教训：
+
+- 配置系统不能只是读取 JSON；它必须校验边界，并且真的影响运行行为。T5.5 通过配置 blocked pattern 改变 guardrail 决策，证明配置不是摆设。

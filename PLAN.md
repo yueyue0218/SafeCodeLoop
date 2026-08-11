@@ -614,6 +614,8 @@ python -m pytest tests/test_context_memory.py
 
 ### T5.5 实现 Config Loader
 
+状态：已完成。
+
 目标：从配置文件加载运行规则。
 
 涉及文件：
@@ -633,6 +635,12 @@ python -m pytest tests/test_context_memory.py
 ```bash
 python -m pytest tests/test_config.py
 ```
+
+实际验证：
+
+- 红灯：首次运行 `python -m pytest tests/test_config.py` 时，`ModuleNotFoundError: No module named 'safecodeloop.config'`。
+- 绿灯：新增 `src/safecodeloop/config.py`、示例配置，并扩展 `GuardrailEngine` 后，`tests/test_config.py` 结果为 `6 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `61 passed`。
 
 依赖：T4.4。
 
