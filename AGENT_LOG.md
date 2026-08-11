@@ -431,3 +431,37 @@ TDD 记录：
 教训：
 
 - Memory 的价值不是保存一切，而是保存可复用的项目事实。T5.3 先把持久化和脱敏边界定住，T5.4 再考虑如何把相关记忆放进 LLM 上下文。
+
+## 2026-08-11 03:10 · T5.4 · Memory 加入上下文组装
+
+触发的流程：
+
+- 继续执行 `PLAN.md` 的 T5.4。
+- 遵循 TDD：先写 `tests/test_context_memory.py`，再扩展 `src/safecodeloop/loop.py`。
+
+完成内容：
+
+- 新增 `tests/test_context_memory.py`。
+- 扩展 `AgentLoop.__init__`，新增可选参数：
+  - `memory_store`
+  - `memory_context_budget`
+- 在 run 开始时根据 task 检索相关 memory。
+- 如果存在相关 memory，则在第一轮 LLM 调用前加入 `memory_context` system message。
+- 如果没有相关 memory，则不额外添加 system message。
+- 使用字符预算限制 memory context，避免上下文过长。
+
+TDD 记录：
+
+- 红灯：首次运行 `python -m pytest tests/test_context_memory.py`，3 个测试失败，原因是 `AgentLoop.__init__()` 不支持 `memory_store` 参数。
+- 绿灯：补充 memory context 组装后，`tests/test_context_memory.py` 结果为 `3 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `55 passed in 3.24s`。
+
+人工干预：
+
+- `memory_store` 是可选参数，不传时保持原有主循环行为。
+- memory context 使用简单文本格式 `memory_context:`，方便 mock LLM 和后续日志验证。
+- 初始实现只放 memory content，不放 id/timestamp，避免上下文噪音。
+
+教训：
+
+- 记忆接入不能无脑塞进所有历史。即使是最小实现，也需要相关性检索和预算控制，否则上下文会污染 LLM 判断。

@@ -5,6 +5,7 @@ from safecodeloop.actions import Action, ActionParseError, parse_action
 from safecodeloop.feedback import Validator
 from safecodeloop.guardrails import GuardrailEngine
 from safecodeloop.llm import LLMClient
+from safecodeloop.memory import MemoryStore
 from safecodeloop.tools import ToolRegistry
 
 
@@ -31,6 +32,8 @@ class AgentLoop:
         tool_registry: ToolRegistry | None = None,
         guardrail_engine: GuardrailEngine | None = None,
         validator: Validator | None = None,
+        memory_store: MemoryStore | None = None,
+        memory_context_budget: int = 1000,
     ):
         if max_steps < 1:
             raise ValueError("max_steps must be at least 1")
@@ -39,10 +42,12 @@ class AgentLoop:
         self.tool_registry = tool_registry
         self.guardrail_engine = guardrail_engine
         self.validator = validator
+        self.memory_store = memory_store
+        self.memory_context_budget = memory_context_budget
 
     def run(self, task: str) -> RunResult:
         steps: list[LoopStep] = []
-        messages = [{"role": "user", "content": task}]
+        messages = self._initial_messages(task)
 
         for index in range(self.max_steps):
             response = self.llm.generate(messages)
@@ -150,3 +155,31 @@ class AgentLoop:
             final_message="Reached max steps without finish action.",
             steps=steps,
         )
+
+    def _initial_messages(self, task: str) -> list[dict[str, str]]:
+        messages = [{"role": "user", "content": task}]
+        if self.memory_store is None:
+            return messages
+
+        memory_context = self._build_memory_context(task)
+        if not memory_context:
+            return messages
+        return [{"role": "system", "content": memory_context}, *messages]
+
+    def _build_memory_context(self, task: str) -> str:
+        if self.memory_context_budget < len("memory_context:\n"):
+            return ""
+
+        lines = []
+        used = len("memory_context:\n")
+        for item in self.memory_store.retrieve(task):
+            line = f"- {item.content}"
+            projected = used + len(line) + 1
+            if projected > self.memory_context_budget:
+                continue
+            lines.append(line)
+            used = projected
+
+        if not lines:
+            return ""
+        return "memory_context:\n" + "\n".join(lines)

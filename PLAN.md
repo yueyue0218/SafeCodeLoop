@@ -582,6 +582,8 @@ python -m pytest tests/test_memory.py
 
 ### T5.4 将 Memory 加入上下文组装
 
+状态：已完成。
+
 目标：相关记忆进入 LLM 上下文。
 
 涉及文件：
@@ -599,6 +601,12 @@ python -m pytest tests/test_memory.py
 ```bash
 python -m pytest tests/test_context_memory.py
 ```
+
+实际验证：
+
+- 红灯：首次运行 `python -m pytest tests/test_context_memory.py` 时，3 个测试失败，原因是 `AgentLoop.__init__()` 不支持 `memory_store` 参数。
+- 绿灯：扩展 `src/safecodeloop/loop.py` 后，`tests/test_context_memory.py` 结果为 `3 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `55 passed`。
 
 依赖：T5.3、T3.3。
 
