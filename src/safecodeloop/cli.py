@@ -1,9 +1,11 @@
 import argparse
 import json
+import secrets
 from getpass import getpass
 from pathlib import Path
 
 from safecodeloop import __version__
+from safecodeloop.approval import ApprovalError, ApprovalStore
 from safecodeloop.config import ConfigError, load_config
 from safecodeloop.credentials import CredentialError, CredentialStore
 from safecodeloop.feedback import Validator
@@ -32,6 +34,7 @@ def build_parser():
     run_parser.add_argument("--workspace")
     run_parser.add_argument("--config")
     run_parser.add_argument("--log")
+    run_parser.add_argument("--resume", help="Resume an approved action by approval ID.")
 
     key_parser = subparsers.add_parser("key", help="Manage LLM API credentials.")
     key_subparsers = key_parser.add_subparsers(dest="key_command")
@@ -45,6 +48,13 @@ def build_parser():
     key_clear = key_subparsers.add_parser("clear", help="Clear a stored API key.")
     key_clear.add_argument("provider", nargs="?", default="openai")
 
+    approval_parser = subparsers.add_parser("approval", help="Inspect and decide pending actions.")
+    approval_subparsers = approval_parser.add_subparsers(dest="approval_command")
+    for command in ("status", "approve", "reject"):
+        command_parser = approval_subparsers.add_parser(command)
+        command_parser.add_argument("approval_id")
+        command_parser.add_argument("--workspace", default=".")
+
     subparsers.add_parser("demo", help="Run deterministic mock-LLM demos.")
     return parser
 
@@ -57,6 +67,8 @@ def main(argv=None):
         return _handle_key_command(args, parser)
     if args.command == "run":
         return _handle_run_command(args)
+    if args.command == "approval":
+        return _handle_approval_command(args, parser)
 
     return 0
 
@@ -66,6 +78,7 @@ def _handle_run_command(args) -> int:
         config = load_config(args.config)
         workspace = Path(args.workspace or config.workspace_root)
         workspace.mkdir(parents=True, exist_ok=True)
+        approval_store = _approval_store(workspace)
 
         llm = _create_llm(config, args.mock_script)
         loop = AgentLoop(
@@ -78,20 +91,57 @@ def _handle_run_command(args) -> int:
             ),
             validator=Validator(),
             memory_store=MemoryStore(workspace / config.memory_path),
+            approval_store=approval_store,
         )
-        result = loop.run(" ".join(args.task))
-    except (ConfigError, CredentialError, LLMError, OSError, ValueError) as exc:
+        task = " ".join(args.task)
+        result = loop.resume(args.resume, task) if args.resume else loop.run(task)
+    except (ApprovalError, ConfigError, CredentialError, LLMError, OSError, ValueError) as exc:
         print(f"run error: {exc}")
         return 2
 
     print(f"status: {result.status}")
     if result.final_message:
         print(result.final_message)
+    if result.approval_id:
+        print(f"approval_id: {result.approval_id}")
 
     if args.log:
         _write_run_log(Path(args.log), result)
 
     return 0 if result.status == "success" else 1
+
+
+def _approval_store(workspace: Path) -> ApprovalStore:
+    credential_store = CredentialStore()
+    signing_provider = "safecodeloop-approval-signing-key"
+    signing_key = credential_store.get_key(signing_provider)
+    if signing_key is None:
+        signing_key = secrets.token_hex(32)
+        credential_store.set_key(signing_provider, signing_key)
+    return ApprovalStore(
+        workspace / ".safecodeloop" / "approvals.json",
+        signing_key=signing_key.encode("utf-8"),
+    )
+
+
+def _handle_approval_command(args, parser) -> int:
+    if args.approval_command is None:
+        parser.error("approval requires a subcommand: status, approve, or reject")
+    store = _approval_store(Path(args.workspace))
+    try:
+        if args.approval_command == "status":
+            record = store.get(args.approval_id)
+        elif args.approval_command == "approve":
+            record = store.approve(args.approval_id)
+        else:
+            record = store.reject(args.approval_id)
+    except ApprovalError as exc:
+        print(f"approval error: {exc}")
+        return 2
+    print(f"approval {record.id}: {record.status}")
+    print(f"reason: {record.reason}")
+    print(f"action_hash: {record.action_hash}")
+    return 0
 
 
 def _create_llm(config, mock_script):
@@ -143,6 +193,7 @@ def _run_result_to_dict(result: RunResult) -> dict:
     return {
         "status": result.status,
         "final_message": result.final_message,
+        "approval_id": result.approval_id,
         "steps": [
             {
                 "index": step.index,

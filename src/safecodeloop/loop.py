@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from safecodeloop.actions import Action, ActionParseError, parse_action
+from safecodeloop.approval import ApprovalError, ApprovalStore
 from safecodeloop.feedback import Validator
 from safecodeloop.guardrails import GuardrailEngine
 from safecodeloop.llm import LLMClient
@@ -35,6 +36,7 @@ class RunResult:
     status: str
     final_message: str
     steps: list[LoopStep]
+    approval_id: str | None = None
 
 
 class AgentLoop:
@@ -47,6 +49,7 @@ class AgentLoop:
         validator: Validator | None = None,
         memory_store: MemoryStore | None = None,
         memory_context_budget: int = 1000,
+        approval_store: ApprovalStore | None = None,
     ):
         if max_steps < 1:
             raise ValueError("max_steps must be at least 1")
@@ -57,6 +60,7 @@ class AgentLoop:
         self.validator = validator
         self.memory_store = memory_store
         self.memory_context_budget = memory_context_budget
+        self.approval_store = approval_store
 
     def run(self, task: str) -> RunResult:
         steps: list[LoopStep] = []
@@ -106,11 +110,16 @@ class AgentLoop:
             if self.guardrail_engine is not None:
                 decision = self.guardrail_engine.check(action)
                 if decision.status != "allowed":
+                    approval_id = None
+                    if decision.status == "needs_approval" and self.approval_store is not None:
+                        approval_id = self.approval_store.create(action, decision.reason).id
                     observation = {
                         "kind": "guardrail_result",
                         "status": decision.status,
                         "reason": decision.reason,
                     }
+                    if approval_id is not None:
+                        observation["approval_id"] = approval_id
                     steps.append(
                         LoopStep(
                             index=index,
@@ -123,6 +132,7 @@ class AgentLoop:
                         status=decision.status,
                         final_message=decision.reason,
                         steps=steps,
+                        approval_id=approval_id,
                     )
 
             if self.tool_registry is None:
@@ -168,6 +178,87 @@ class AgentLoop:
             final_message="Reached max steps without finish action.",
             steps=steps,
         )
+
+    def resume(self, approval_id: str, task: str) -> RunResult:
+        if self.approval_store is None:
+            raise ApprovalError("approval store is not configured")
+        if self.tool_registry is None:
+            raise ApprovalError("tools are not connected")
+
+        record = self.approval_store.get(approval_id)
+        self.approval_store.consume(approval_id, record.action)
+        tool_result = self.tool_registry.dispatch(record.action)
+        if self.validator is not None and record.action.type == "run_command":
+            observation = self.validator.validate(tool_result).to_observation()
+        else:
+            observation = tool_result.to_observation(record.action.type)
+
+        messages = self._initial_messages(task)
+        messages.append(
+            {
+                "role": "system",
+                "content": f"approved_tool_result: {observation}",
+            }
+        )
+        steps = [
+            LoopStep(
+                index=0,
+                llm_response="[approved action resumed]",
+                action=record.action,
+                observation={
+                    **observation,
+                    "approval_id": approval_id,
+                    "approval_status": "consumed",
+                },
+            )
+        ]
+
+        for index in range(1, self.max_steps + 1):
+            response = self.llm.generate(messages)
+            try:
+                action = parse_action(response.content)
+            except ActionParseError as exc:
+                observation = {"kind": "parse_error", "message": str(exc)}
+                steps.append(LoopStep(index=index, llm_response=response.content, observation=observation))
+                messages.append({"role": "system", "content": f"parse_error: {exc}"})
+                continue
+
+            if action.type == "finish":
+                steps.append(
+                    LoopStep(
+                        index=index,
+                        llm_response=response.content,
+                        action=action,
+                        observation={"kind": "action_parsed", "action_type": "finish"},
+                    )
+                )
+                return RunResult(
+                    status="success",
+                    final_message=str(action.arguments.get("message", "")),
+                    steps=steps,
+                )
+
+            decision = self.guardrail_engine.check(action) if self.guardrail_engine else None
+            if decision is not None and decision.status != "allowed":
+                next_id = None
+                if decision.status == "needs_approval":
+                    next_id = self.approval_store.create(action, decision.reason).id
+                guardrail_observation = {
+                    "kind": "guardrail_result",
+                    "status": decision.status,
+                    "reason": decision.reason,
+                }
+                if next_id:
+                    guardrail_observation["approval_id"] = next_id
+                steps.append(LoopStep(index=index, llm_response=response.content, action=action, observation=guardrail_observation))
+                return RunResult(decision.status, decision.reason, steps, approval_id=next_id)
+
+            next_result = self.tool_registry.dispatch(action)
+            next_observation = next_result.to_observation(action.type)
+            steps.append(LoopStep(index=index, llm_response=response.content, action=action, observation=next_observation))
+            messages.append({"role": "system", "content": f"tool_result: {next_observation}"})
+
+        return RunResult("max_steps", "Reached max steps without finish action.", steps)
 
     def _initial_messages(self, task: str) -> list[dict[str, str]]:
         messages = [

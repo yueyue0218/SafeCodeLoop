@@ -18,6 +18,7 @@ It is CLI-only. The project uses mock LLM scripts for deterministic tests and de
 - Workspace-scoped file tools.
 - Controlled command execution.
 - Deterministic guardrail engine.
+- Persistent one-time human approval workflow.
 - Test feedback classifier.
 - Memory/context store.
 - JSON config loader.
@@ -56,7 +57,7 @@ python -m pytest
 Current local result:
 
 ```text
-87 passed
+97 passed
 ```
 
 ## CLI Usage
@@ -186,6 +187,32 @@ safecodeloop key clear openai
 `key set` prompts for the secret without echoing it. SafeCodeLoop stores credentials through the operating-system keyring; on Windows this uses Windows Credential Manager. Status output reports only whether a credential exists and never displays the value or a recognizable fragment. Command-line key values are intentionally unsupported because process arguments and shell history can expose them.
 
 The plaintext file backend is available only through explicit dependency injection for isolated tests. It is not selected by the production CLI. Do not commit `.env`, logs, local memory, or real API keys.
+
+## Human approval workflow
+
+Actions such as dependency installation pause before tool execution and produce an approval ID:
+
+```text
+status: needs_approval
+dependency install requires approval
+approval_id: <id>
+```
+
+Inspect and decide the action in a later CLI invocation:
+
+```powershell
+safecodeloop approval status <id> --workspace .\my-workspace
+safecodeloop approval approve <id> --workspace .\my-workspace
+# or: safecodeloop approval reject <id> --workspace .\my-workspace
+```
+
+After approval, resume the original task with the same provider configuration:
+
+```powershell
+safecodeloop run --resume <id> --config .\config.json --workspace .\my-workspace continue the task
+```
+
+Each approval is bound to an HMAC-SHA256 signature of the canonical action and can be consumed only once. The signing key is stored separately in the OS keyring. Rejected, modified, already consumed, or tampered records fail closed. Approval files may contain action arguments, so `.safecodeloop/` remains local and excluded from Git.
 
 ## Docker
 
