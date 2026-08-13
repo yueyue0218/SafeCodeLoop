@@ -861,6 +861,13 @@ python -m pytest
 - CI 安装当前包和 pytest 后执行 `python -m pytest`。
 - 本地回归：`python -m pytest` 结果为 `72 passed`。
 
+GitHub 托管适配：
+
+- 新增 `.github/workflows/ci.yml`，保留现有 `.gitlab-ci.yml`。
+- pull request 和 `main` push 触发 `unit-test` job。
+- job 运行全量测试、构建 wheel，并在隔离虚拟环境安装 wheel 后执行 CLI smoke test。
+- 本地构建与安装验证完成后，由 GitHub Actions 的实际运行结果确认远程状态。
+
 依赖：T2.1。
 
 可并行：是。

@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install test and build dependencies
+        run: python -m pip install --upgrade pip pytest build
+
+      - name: Install project
+        run: python -m pip install -e .
+
+      - name: Run unit tests
+        run: python -m pytest
+
+      - name: Build distribution artifacts
+        run: python -m build
+
+      - name: Verify wheel in an isolated environment
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/safecodeloop-smoke"
+          "$RUNNER_TEMP/safecodeloop-smoke/bin/python" -m pip install dist/*.whl
+          "$RUNNER_TEMP/safecodeloop-smoke/bin/safecodeloop" --help
