@@ -833,6 +833,8 @@ python -m pytest tests/test_demo_main_contribution.py
 
 ### T7.1 添加 `.gitlab-ci.yml`
 
+状态：已完成本地配置；远程 CI pass 待平台运行确认。
+
 目标：满足课程 CI 要求。
 
 涉及文件：
@@ -849,6 +851,13 @@ python -m pytest tests/test_demo_main_contribution.py
 ```bash
 python -m pytest
 ```
+
+实际验证：
+
+- 新增 `.gitlab-ci.yml`，包含名为 `unit-test` 的 job。
+- CI job 使用 `python:3.11` 镜像。
+- CI 安装当前包和 pytest 后执行 `python -m pytest`。
+- 本地回归：`python -m pytest` 结果为 `72 passed`。
 
 依赖：T2.1。
 

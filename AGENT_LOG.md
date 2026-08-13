@@ -688,3 +688,35 @@ TDD / 审查记录：
 教训：
 
 - “组合机制”不是把两个功能随便放在一起，而是要保留依赖关系：T6.4 必须先展示 T6.3 的修正能力，再展示 T6.2 的执行前治理。
+
+## 2026-08-13 15:30 · T7.1 · GitLab CI 单元测试配置
+
+触发的流程：
+
+- 用户要求进入 T7.1。
+- 按课程要求补充 `.gitlab-ci.yml`，明确包含 `unit-test` job。
+
+完成内容：
+
+- 新增 `.gitlab-ci.yml`。
+- 配置 `stages: test`。
+- 配置 `unit-test` job：
+  - 使用 `python:3.11` 镜像。
+  - 先升级 pip。
+  - 安装当前项目：`python -m pip install -e .`。
+  - 安装 pytest。
+  - 执行 `python -m pytest`。
+
+验证记录：
+
+- 本地运行 `python -m pytest`，结果为 `72 passed in 5.05s`。
+- 远程 CI 结果需要 push 后由托管平台实际运行确认，本地不伪造远程 pass。
+
+人工判断：
+
+- 虽然当前代码托管在 GitHub，但课程文档明确要求 `.gitlab-ci.yml` 和 `unit-test`，所以仍按 GitLab CI 格式提供。
+- CI 使用 Python 3.11，与 `pyproject.toml` 的 `requires-python >=3.11` 对齐。
+
+教训：
+
+- CI 文件是作业工程化证据的一部分，不是功能代码。它要足够简单，让助教能直接看到测试入口。
