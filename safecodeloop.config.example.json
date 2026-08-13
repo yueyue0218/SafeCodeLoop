@@ -17,5 +17,9 @@
   ],
   "testCommand": "python -m pytest",
   "modelProvider": "mock",
+  "model": "glm-5.2",
+  "baseUrl": "https://njusehub.info/v1",
+  "requestTimeout": 60,
+  "credentialProvider": "njusehub",
   "memoryPath": ".safecodeloop/memory.json"
 }

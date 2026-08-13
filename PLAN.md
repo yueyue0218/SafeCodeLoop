@@ -83,7 +83,7 @@
 
 - 至少记录 3 轮关键迭代。
 - 记录采纳和推翻的 AI 建议。
-- 记录老师补充说明后改为 CLI-only + release 的原因。
+- 记录依据课程补充说明改为 CLI-only + release 的原因。
 
 依赖：T1.1、T1.2。
 
@@ -272,6 +272,8 @@ python -m pytest tests/test_llm.py
 依赖：T2.1。
 
 可并行：是。
+
+后续增强：新增底层 OpenAI-compatible chat completion adapter，不使用高层 agent runner；HTTP 请求、响应和错误通过 fake transport 离线测试，真实 key 从 OS keyring 读取。
 
 ### T3.3 实现主循环骨架
 
@@ -964,7 +966,7 @@ docker run --rm safecodeloop --help
 
 状态：已完成。
 
-目标：让助教能从零运行项目。
+目标：让复现者能从零运行项目。
 
 涉及文件：
 
@@ -1063,7 +1065,7 @@ docker run --rm safecodeloop --help
 
 状态：已完成。
 
-目标：完成老师补充要求的提交元数据。
+目标：完成课程补充要求的提交元数据。
 
 文件位置：
 

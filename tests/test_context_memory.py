@@ -15,9 +15,11 @@ def test_relevant_memory_appears_in_llm_context(tmp_path):
     assert result.status == "success"
     first_call = llm.calls[0]
     assert first_call[0]["role"] == "system"
-    assert "memory_context" in first_call[0]["content"]
-    assert "pytest is the required test command" in first_call[0]["content"]
-    assert "docker release happens later" not in first_call[0]["content"]
+    assert "Return exactly one JSON action object" in first_call[0]["content"]
+    assert "memory_context" in first_call[1]["content"]
+    assert "pytest is the required test command" in first_call[1]["content"]
+    assert "docker release happens later" not in first_call[1]["content"]
+    assert first_call[-1] == {"role": "user", "content": "run pytest after editing code"}
 
 
 def test_memory_context_budget_omits_lower_ranked_items(tmp_path):
@@ -29,7 +31,7 @@ def test_memory_context_budget_omits_lower_ranked_items(tmp_path):
 
     loop.run("pytest")
 
-    memory_message = llm.calls[0][0]["content"]
+    memory_message = llm.calls[0][1]["content"]
     assert "pytest important" in memory_message
     assert "pytest second detail that should be omitted" not in memory_message
 
@@ -42,4 +44,6 @@ def test_no_memory_message_when_no_relevant_memory(tmp_path):
 
     loop.run("run tests")
 
-    assert llm.calls[0] == [{"role": "user", "content": "run tests"}]
+    assert len(llm.calls[0]) == 2
+    assert "Return exactly one JSON action object" in llm.calls[0][0]["content"]
+    assert llm.calls[0][1] == {"role": "user", "content": "run tests"}

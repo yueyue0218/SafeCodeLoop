@@ -12,9 +12,9 @@ SafeCodeLoop 是一个面向编程任务的迷你 Coding Agent Harness。它不�
 
 ## 2. 目标用户
 
-- AI4SE 课程中选择 A 类 Agent Harness 作业的学生。
+- AI4SE 课程中希望理解 Agent Harness 工程机制的开发者。
 - 想理解 coding agent 内部机制的开发者。
-- 需要在无真实 LLM API key、无网络条件下检查 harness 机制的老师或助教。
+- 需要在无真实 LLM API key、无网络条件下复现和检查 harness 机制的评审者。
 
 ## 3. 项目范围
 
@@ -176,7 +176,7 @@ SafeCodeLoop 是一个面向编程任务的迷你 Coding Agent Harness。它不�
 行为：
 
 - `MockLLM` 返回测试脚本中的预设响应。
-- `RealLLM` 在配置 key 后可调用真实供应商。
+- `OpenAICompatibleLLM` 通过底层 `/chat/completions` 单次调用连接兼容供应商；主循环、动作解析、工具、治理和反馈仍由 SafeCodeLoop 实现。
 
 输出：
 
@@ -186,6 +186,7 @@ SafeCodeLoop 是一个面向编程任务的迷你 Coding Agent Harness。它不�
 边界条件：
 
 - 未配置真实 key 时返回明确错误。
+- 鉴权、限流、超时、网络错误和无效响应转换为不含密钥的稳定错误。
 - 单元测试默认使用 mock LLM。
 
 ### 5.3 Action 解析器
@@ -280,6 +281,10 @@ SafeCodeLoop 是一个面向编程任务的迷你 Coding Agent Harness。它不�
 - `approvalRequiredPatterns`
 - `testCommand`
 - `modelProvider`
+- `model`
+- `baseUrl`
+- `requestTimeout`
+- `credentialProvider`
 - `memoryPath`
 
 行为：
@@ -536,7 +541,7 @@ Agent Loop -> Action Parser -> Tool Dispatcher -> Tools -> Observation -> Agent 
 
 理由：
 
-- 老师补充说明允许 Agent Harness 项目只提供 CLI 和 release。
+- 课程补充说明允许 Agent Harness 项目只提供 CLI 和 release。
 - 这样能把时间集中在 harness 内核、mock 测试和机制演示上。
 
 可选：

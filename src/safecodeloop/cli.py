@@ -8,7 +8,7 @@ from safecodeloop.config import ConfigError, load_config
 from safecodeloop.credentials import CredentialError, CredentialStore
 from safecodeloop.feedback import Validator
 from safecodeloop.guardrails import GuardrailEngine
-from safecodeloop.llm import MockLLM
+from safecodeloop.llm import LLMError, MockLLM, OpenAICompatibleLLM
 from safecodeloop.loop import AgentLoop, RunResult
 from safecodeloop.memory import MemoryStore
 from safecodeloop.tools import create_agent_tool_registry
@@ -28,7 +28,7 @@ def build_parser():
     subparsers = parser.add_subparsers(dest="command")
     run_parser = subparsers.add_parser("run", help="Run a task through the harness.")
     run_parser.add_argument("task", nargs="+")
-    run_parser.add_argument("--mock-script", required=True)
+    run_parser.add_argument("--mock-script")
     run_parser.add_argument("--workspace")
     run_parser.add_argument("--config")
     run_parser.add_argument("--log")
@@ -67,7 +67,7 @@ def _handle_run_command(args) -> int:
         workspace = Path(args.workspace or config.workspace_root)
         workspace.mkdir(parents=True, exist_ok=True)
 
-        llm = MockLLM(_load_mock_script(Path(args.mock_script)))
+        llm = _create_llm(config, args.mock_script)
         loop = AgentLoop(
             llm=llm,
             max_steps=config.max_steps,
@@ -80,7 +80,7 @@ def _handle_run_command(args) -> int:
             memory_store=MemoryStore(workspace / config.memory_path),
         )
         result = loop.run(" ".join(args.task))
-    except (ConfigError, OSError, ValueError) as exc:
+    except (ConfigError, CredentialError, LLMError, OSError, ValueError) as exc:
         print(f"run error: {exc}")
         return 2
 
@@ -92,6 +92,28 @@ def _handle_run_command(args) -> int:
         _write_run_log(Path(args.log), result)
 
     return 0 if result.status == "success" else 1
+
+
+def _create_llm(config, mock_script):
+    if config.model_provider == "mock":
+        if not mock_script:
+            raise ConfigError("--mock-script is required when modelProvider is mock")
+        return MockLLM(_load_mock_script(Path(mock_script)))
+
+    if config.model_provider == "openai-compatible":
+        api_key = CredentialStore().get_key(config.credential_provider)
+        if not api_key:
+            raise CredentialError(
+                f"credential is not configured for provider: {config.credential_provider}"
+            )
+        return OpenAICompatibleLLM(
+            api_key=api_key,
+            model=config.model,
+            base_url=config.base_url,
+            timeout=config.request_timeout,
+        )
+
+    raise ConfigError(f"unsupported modelProvider: {config.model_provider}")
 
 
 def _load_mock_script(path: Path) -> list[str]:
