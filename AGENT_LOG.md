@@ -1102,3 +1102,18 @@ TDD 与设计判断：
 - `maxValidations` 和 `maxRepeatedFailures` 暴露为 CLI 配置字段，并拒绝非正整数。
 - 代码复审发现审批恢复后的失败验证可直接 `finish`；我先加入红灯测试确认绕过，再让 `resume()` 使用相同的完成门槛、预算与熔断规则。
 - 加入未配置 Validator 的兼容性覆盖后，全量回归 `114 passed in 7.45s`。
+
+## 2026-08-14 01:45 · Release 准备 · Docker 干净环境验证
+
+触发的流程：
+
+- 我在完成反馈闭环后进入 `release/v0.1.0-prep`，重新执行 Docker 验证，不沿用早期网络失败记录。
+- Docker Desktop Engine 29.7.2 正常；首次拉取因 Docker Hub 代理地址不适合宿主机进程而超时。我将 Docker Desktop HTTP/HTTPS 代理改为宿主机 `127.0.0.1` 端口后成功拉取基础镜像。
+
+验证与修正：
+
+- 首次镜像构建成功，CLI help、版本号和镜像内容边界通过。
+- 容器内 mock demo 暴露普通安全任务会过早初始化 OS keyring。我先加入红灯测试，再引入惰性审批存储；安全任务不访问凭据系统，真正创建或恢复审批时仍强制使用 OS keyring。
+- 我追加风险动作回归，确认惰性初始化没有让审批流程绕过 keyring。
+- 第二次容器 demo 触发重复环境失败熔断，定位为镜像缺少 pytest；我将 pytest 纳入演示镜像，使其可以独立复现反馈闭环。
+- 最终全量回归 `116 passed`；镜像 `safecodeloop:0.1.0` 构建成功；容器内 `--help`、`--version`、完整 mock 反馈演示和排除 `.git`、release、本地审批目录及内部计划的边界检查全部通过。

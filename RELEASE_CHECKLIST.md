@@ -2,10 +2,11 @@
 
 ## Required Before Creating Release
 
-- [ ] `python -m pytest` passes locally.
-- [ ] `.gitlab-ci.yml` contains a `unit-test` job that runs `python -m pytest`.
-- [ ] `Dockerfile` and `.dockerignore` are present.
-- [x] Docker CLI is available; build was attempted and blocked by Docker Hub network access.
+- [x] `python -m pytest` passes locally (`116 passed`).
+- [x] `.gitlab-ci.yml` contains a `unit-test` job that runs `python -m pytest`.
+- [x] GitHub Actions verifies tests, distributions, and isolated wheel installation.
+- [x] `Dockerfile` and `.dockerignore` are present.
+- [x] Docker image builds and CLI smoke tests pass in the container.
 - [x] `README.md` is complete.
 - [x] `REFLECTION.md` is reviewed and personalized by the project author.
 - [x] `submission.jsonc` is outside the source archive and filled with real student/repository/release values.
@@ -48,6 +49,10 @@ release\SafeCodeLoop-0.1.0.zip
 - local run logs
 - real API keys or credentials
 
-## Known Pending Items
+## Remaining Release Actions
 
-- Docker image build should be retried when Docker Hub `auth.docker.io` / `registry-1.docker.io` is reachable.
+- [x] Record Docker image build and container smoke results.
+- [ ] Generate the final source archive from tracked files.
+- [ ] Generate SHA-256 checksums for the zip, wheel, and source distribution.
+- [ ] Create the GitHub Release and attach all artifacts.
+- [ ] Verify the public Release URL in a signed-out browser.

@@ -1,11 +1,14 @@
 {
   "workspaceRoot": ".",
   "maxSteps": 5,
+  "maxValidations": 4,
+  "maxRepeatedFailures": 2,
   "allowedTools": [
     "list_files",
     "read_file",
     "write_file",
-    "run_command"
+    "run_command",
+    "run_validation"
   ],
   "blockedCommandPatterns": [
     "rm -rf /",
