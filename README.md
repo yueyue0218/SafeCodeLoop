@@ -17,6 +17,7 @@ It is CLI-only. The project uses mock LLM scripts for deterministic tests and de
 - Mock LLM interface.
 - Workspace-scoped file tools.
 - Controlled command execution.
+- Explicit validation actions separated from ordinary commands.
 - Deterministic guardrail engine.
 - Persistent one-time human approval workflow.
 - Test feedback classifier.
@@ -57,7 +58,7 @@ python -m pytest
 Current local result:
 
 ```text
-97 passed
+100 passed
 ```
 
 ## CLI Usage
@@ -129,7 +130,7 @@ Example config:
 {
   "workspaceRoot": ".",
   "maxSteps": 5,
-  "allowedTools": ["list_files", "read_file", "write_file", "run_command"],
+  "allowedTools": ["list_files", "read_file", "write_file", "run_command", "run_validation"],
   "blockedCommandPatterns": [],
   "approvalRequiredPatterns": [],
   "testCommand": "python -m pytest",

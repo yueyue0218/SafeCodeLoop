@@ -17,6 +17,7 @@ Allowed actions:
 - {"type":"read_file","path":"relative/path"}
 - {"type":"write_file","path":"relative/path","content":"file content"}
 - {"type":"run_command","command":"command to execute"}
+- {"type":"run_validation","command":"test, lint, or typecheck command"}
 - {"type":"remember","content":"fact","kind":"optional kind"}
 - {"type":"request_approval","reason":"reason"}
 - {"type":"finish","message":"result summary"}
@@ -154,7 +155,7 @@ class AgentLoop:
                 continue
 
             tool_result = self.tool_registry.dispatch(action)
-            if self.validator is not None and action.type == "run_command":
+            if self.validator is not None and action.type == "run_validation":
                 observation = self.validator.validate(tool_result).to_observation()
             else:
                 observation = tool_result.to_observation(action.type)
@@ -188,7 +189,7 @@ class AgentLoop:
         record = self.approval_store.get(approval_id)
         self.approval_store.consume(approval_id, record.action)
         tool_result = self.tool_registry.dispatch(record.action)
-        if self.validator is not None and record.action.type == "run_command":
+        if self.validator is not None and record.action.type == "run_validation":
             observation = self.validator.validate(tool_result).to_observation()
         else:
             observation = tool_result.to_observation(record.action.type)
@@ -254,7 +255,10 @@ class AgentLoop:
                 return RunResult(decision.status, decision.reason, steps, approval_id=next_id)
 
             next_result = self.tool_registry.dispatch(action)
-            next_observation = next_result.to_observation(action.type)
+            if self.validator is not None and action.type == "run_validation":
+                next_observation = self.validator.validate(next_result).to_observation()
+            else:
+                next_observation = next_result.to_observation(action.type)
             steps.append(LoopStep(index=index, llm_response=response.content, action=action, observation=next_observation))
             messages.append({"role": "system", "content": f"tool_result: {next_observation}"})
 

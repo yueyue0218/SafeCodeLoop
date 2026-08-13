@@ -1057,3 +1057,17 @@ TDD 记录：
 - AgentLoop 在风险动作执行前创建 pending 记录并返回 approval id。
 - CLI 新增 `approval status/approve/reject` 和 `run --resume`。
 - 批准、拒绝、一次性消费、动作替换、磁盘篡改和跨进程恢复均可由 mock LLM 确定性验证。
+
+## 2026-08-14 00:10 · T12.1 增强 · 显式验证动作
+
+触发的流程：
+
+- 我复审反馈闭环后发现，现有实现会把所有 `run_command` 都交给 Validator，导致 `git status` 等普通命令成功也被描述为验证通过。
+- 我创建 `feat/t12-validation-loop`，选择新增 `run_validation` 动作，使普通工具结果与客观验证反馈在协议层可区分；Codex 协助 TDD、实现和回归检查。
+
+TDD 与设计判断：
+
+- 红灯测试准确暴露三处缺口：解析器不识别新动作、工具未注册、普通命令仍产生 feedback。
+- `run_validation` 复用现有受控命令执行器，不复制 shell 执行逻辑，并与 `run_command` 经过相同 guardrail，避免验证动作成为绕过入口。
+- feedback demo 改为显式请求验证；危险命令 demo 继续使用普通命令，保持治理与反馈职责分离。
+- 相关回归 `17 passed`；加入验证动作不可绕过危险命令规则的覆盖后，全量回归 `100 passed in 7.51s`。

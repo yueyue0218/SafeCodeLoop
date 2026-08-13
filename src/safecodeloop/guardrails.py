@@ -29,7 +29,7 @@ class GuardrailEngine:
         self.blocked_command_patterns = blocked_command_patterns
 
     def check(self, action: Action) -> GuardrailDecision:
-        if action.type == "run_command":
+        if action.type in {"run_command", "run_validation"}:
             return self._check_command(str(action.arguments.get("command", "")))
 
         if action.type in {"read_file", "write_file"}:

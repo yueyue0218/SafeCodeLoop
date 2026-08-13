@@ -197,6 +197,7 @@ SafeCodeLoop 是一个面向编程任务的迷你 Coding Agent Harness。它不�
 - `read_file`
 - `write_file`
 - `run_command`
+- `run_validation`
 - `remember`
 - `finish`
 - `request_approval`
@@ -371,6 +372,7 @@ WebUI：
 - 每次运行保存 step log。
 - guardrail 决策记录原因。
 - feedback 记录分类结果。
+- 普通 `run_command` 保留为工具 observation；只有显式 `run_validation` 产生客观验证 feedback。
 - 真实 LLM 响应不得记录密钥。
 
 ## 7. 系统架构

@@ -17,6 +17,7 @@ REQUIRED_FIELDS = {
     "read_file": ("path",),
     "write_file": ("path", "content"),
     "run_command": ("command",),
+    "run_validation": ("command",),
 }
 
 OPTIONAL_ARGUMENT_FIELDS = {

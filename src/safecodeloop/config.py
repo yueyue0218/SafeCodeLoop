@@ -19,6 +19,7 @@ class SafeCodeLoopConfig:
         "read_file",
         "write_file",
         "run_command",
+        "run_validation",
     )
     blocked_command_patterns: tuple[str, ...] = ()
     approval_required_patterns: tuple[str, ...] = ()
