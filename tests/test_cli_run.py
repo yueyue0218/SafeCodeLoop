@@ -1,5 +1,6 @@
 import json
 
+from safecodeloop.approval import ApprovalStore
 from safecodeloop.cli import main
 from safecodeloop.llm import LLMResponse
 
@@ -82,8 +83,13 @@ def test_run_cli_uses_configured_real_provider_without_mock_script(tmp_path, mon
 
     class FakeStore:
         def get_key(self, provider):
-            assert provider == "njusehub"
-            return "secret"
+            return {
+                "njusehub": "provider-secret",
+                "safecodeloop-approval-signing-key": "approval-signing-secret",
+            }.get(provider)
+
+        def set_key(self, provider, value):
+            raise AssertionError("existing fake credentials should not be overwritten")
 
     class FakeLLM:
         def generate(self, messages):
@@ -99,3 +105,77 @@ def test_run_cli_uses_configured_real_provider_without_mock_script(tmp_path, mon
 
     assert exit_code == 0
     assert "real provider selected" in capsys.readouterr().out
+
+
+def test_cli_approval_status_approve_and_reject(tmp_path, monkeypatch, capsys):
+    from safecodeloop.actions import Action
+
+    store = ApprovalStore(tmp_path / "approvals.json", b"test-only-approval-signing-key")
+    first = store.create(
+        Action(type="run_command", arguments={"command": "python -m pip install requests"}),
+        "approval required",
+    )
+    second = store.create(
+        Action(type="run_command", arguments={"command": "npm install"}),
+        "approval required",
+    )
+    monkeypatch.setattr("safecodeloop.cli._approval_store", lambda workspace: store)
+
+    assert main(["approval", "status", first.id, "--workspace", str(tmp_path)]) == 0
+    assert "pending" in capsys.readouterr().out
+    assert main(["approval", "approve", first.id, "--workspace", str(tmp_path)]) == 0
+    assert "approved" in capsys.readouterr().out
+    assert main(["approval", "reject", second.id, "--workspace", str(tmp_path)]) == 0
+    assert "rejected" in capsys.readouterr().out
+
+
+def test_cli_persists_approval_and_resumes_in_later_invocation(tmp_path, monkeypatch, capsys):
+    workspace = tmp_path / "workspace"
+    store = ApprovalStore(tmp_path / "approvals.json", b"test-only-approval-signing-key")
+    monkeypatch.setattr("safecodeloop.cli._approval_store", lambda workspace: store)
+    request_script = tmp_path / "request.json"
+    request_script.write_text(
+        json.dumps([{"type": "run_command", "command": "python -m pip install --version"}]),
+        encoding="utf-8",
+    )
+
+    first_exit = main(
+        [
+            "run",
+            "--mock-script",
+            str(request_script),
+            "--workspace",
+            str(workspace),
+            "inspect pip install command",
+        ]
+    )
+    first_output = capsys.readouterr().out
+    approval_id = first_output.split("approval_id: ", 1)[1].splitlines()[0]
+
+    assert first_exit == 1
+    assert "status: needs_approval" in first_output
+    assert main(["approval", "approve", approval_id, "--workspace", str(workspace)]) == 0
+    capsys.readouterr()
+
+    resume_script = tmp_path / "resume.json"
+    resume_script.write_text(
+        json.dumps([{"type": "finish", "message": "resumed through CLI"}]),
+        encoding="utf-8",
+    )
+    resumed_exit = main(
+        [
+            "run",
+            "--resume",
+            approval_id,
+            "--mock-script",
+            str(resume_script),
+            "--workspace",
+            str(workspace),
+            "inspect pip install command",
+        ]
+    )
+
+    resumed_output = capsys.readouterr().out
+    assert resumed_exit == 0
+    assert "status: success" in resumed_output
+    assert "resumed through CLI" in resumed_output

@@ -479,6 +479,8 @@ python -m pytest tests/test_loop_tools_guardrails.py
 
 可并行：否。
 
+后续增强：将 `needs_approval` 从终止状态扩展为可跨进程恢复的一次性审批状态机；审批通过 HMAC-SHA256 绑定原始 action，并用 mock LLM 与 CLI 测试批准、拒绝、篡改和重复消费。
+
 ## 7. Phase 5：反馈、记忆、配置、凭据
 
 ### T5.1 实现 Validator 和 Feedback Classifier

@@ -238,6 +238,14 @@ SafeCodeLoop 是一个面向编程任务的迷你 Coding Agent Harness。它不�
 - 被 block 的 action 不能进入 executor。
 - 护栏是确定性代码，不是提示词。
 
+人工审批状态机：
+
+- 风险动作在执行前创建 `pending` 审批记录，使用 OS keyring 中独立保存的签名 key 对 canonical action 生成 HMAC-SHA256 签名。
+- `approve` / `reject` 可在后续 CLI 进程中改变审批状态。
+- `resume` 在执行前重新验证记录完整性与 action 签名，并一次性消费批准。
+- 已拒绝、未批准、已消费、动作不匹配或记录被篡改时安全失败。
+- 只持久化恢复所需的最小审批状态，不保存完整 LLM 对话或凭据。
+
 ### 5.6 反馈闭环
 
 行为：
@@ -433,6 +441,14 @@ Agent Loop -> Action Parser -> Tool Dispatcher -> Tools -> Observation -> Agent 
 - `severity`
 - `reason`
 - `ruleId`
+
+### ApprovalRecord
+
+- `id`
+- `action`
+- `actionHash`
+- `reason`
+- `status`：`pending` / `approved` / `rejected` / `consumed`
 
 ### FeedbackEvent
 

@@ -1026,3 +1026,34 @@ CI 复审：
 
 - PR #3 首次 `unit-test` 成功，但 GitHub 标注 Node.js 20 action runtime 弃用警告。
 - 我查阅官方 action 版本说明后，将 checkout 升级到 v5、setup-python 升级到 v6，使其使用 Node.js 24 runtime，并要求同一 PR 重新通过 CI。
+
+## 2026-08-13 22:50 · T4.5 增强 · 可恢复人工审批状态机
+
+触发的流程：
+
+- 我复审现有治理路径后确认：`needs_approval` 只能停止循环，尚不能在人工决定后恢复，不足以构成完整 HITL。
+- 我创建分支 `feat/resumable-approvals`，确定状态边界和验收标准；Codex 协助实现、TDD 和代码复审。
+
+设计判断：
+
+- 我选择一次性批准，而不是对某类命令永久放行，降低批准被复用的风险。
+- 我最初使用普通 SHA-256 绑定 canonical action；代码质量复审发现攻击者若同时改写 action 和 hash，普通摘要无法提供防篡改能力。因此我升级为 HMAC-SHA256，并将签名 key 独立保存到 OS keyring。
+- 我只持久化 action、hash、原因和状态，不保存完整 LLM 对话或凭据；恢复时通过任务、memory 和已批准工具 observation 重建上下文。
+- 我规定批准在工具调用前消费，因此即使工具失败，旧批准也不能再次执行动作。
+
+TDD 记录：
+
+- 第一轮红灯：审批模块不存在，测试在收集阶段失败。
+- 最小 store 实现后 5 项中 4 项通过；剩余测试发现篡改记录的错误分类顺序不准确。我调整为先验证存储完整性，再比较调用动作，审批核心 `5 passed`。
+- 循环和 CLI 接入测试最初 4 项失败，准确覆盖尚未实现的 store 注入、resume 和 approval 子命令。
+- 接入后审批相关测试 `15 passed`。
+- 我追加跨 CLI 调用测试，验证“创建 pending → 新进程批准 → 新进程恢复 → 完成”链路。
+- 加入 HMAC 防篡改覆盖和 CLI 凭据隔离后，最终全量回归 `97 passed`。
+- PR #4 首轮 Linux CI 暴露出三个 demo 测试仍隐式依赖宿主机 keyring；我选择把临时审批存储注入提升为测试套件公共夹具，保持生产 CLI 的 keyring 强制边界不变。
+
+完成内容：
+
+- 新增 `ApprovalStore`、`ApprovalRecord`、canonical action HMAC 签名和状态转换校验。
+- AgentLoop 在风险动作执行前创建 pending 记录并返回 approval id。
+- CLI 新增 `approval status/approve/reject` 和 `run --resume`。
+- 批准、拒绝、一次性消费、动作替换、磁盘篡改和跨进程恢复均可由 mock LLM 确定性验证。
