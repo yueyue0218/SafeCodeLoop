@@ -156,9 +156,12 @@ class AgentLoop:
 
             tool_result = self.tool_registry.dispatch(action)
             if self.validator is not None and action.type == "run_validation":
-                observation = self.validator.validate(tool_result).to_observation()
+                feedback = self.validator.validate(tool_result)
+                observation = feedback.to_observation()
+                context_observation = self.validator.context_observation(feedback)
             else:
                 observation = tool_result.to_observation(action.type)
+                context_observation = observation
             steps.append(
                 LoopStep(
                     index=index,
@@ -170,7 +173,7 @@ class AgentLoop:
             messages.append(
                 {
                     "role": "system",
-                    "content": f"tool_result: {observation}",
+                    "content": f"tool_result: {context_observation}",
                 }
             )
 
@@ -190,15 +193,18 @@ class AgentLoop:
         self.approval_store.consume(approval_id, record.action)
         tool_result = self.tool_registry.dispatch(record.action)
         if self.validator is not None and record.action.type == "run_validation":
-            observation = self.validator.validate(tool_result).to_observation()
+            feedback = self.validator.validate(tool_result)
+            observation = feedback.to_observation()
+            context_observation = self.validator.context_observation(feedback)
         else:
             observation = tool_result.to_observation(record.action.type)
+            context_observation = observation
 
         messages = self._initial_messages(task)
         messages.append(
             {
                 "role": "system",
-                "content": f"approved_tool_result: {observation}",
+                "content": f"approved_tool_result: {context_observation}",
             }
         )
         steps = [
@@ -256,11 +262,14 @@ class AgentLoop:
 
             next_result = self.tool_registry.dispatch(action)
             if self.validator is not None and action.type == "run_validation":
-                next_observation = self.validator.validate(next_result).to_observation()
+                next_feedback = self.validator.validate(next_result)
+                next_observation = next_feedback.to_observation()
+                next_context_observation = self.validator.context_observation(next_feedback)
             else:
                 next_observation = next_result.to_observation(action.type)
+                next_context_observation = next_observation
             steps.append(LoopStep(index=index, llm_response=response.content, action=action, observation=next_observation))
-            messages.append({"role": "system", "content": f"tool_result: {next_observation}"})
+            messages.append({"role": "system", "content": f"tool_result: {next_context_observation}"})
 
         return RunResult("max_steps", "Reached max steps without finish action.", steps)
 

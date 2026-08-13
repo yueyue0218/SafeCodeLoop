@@ -87,3 +87,38 @@ def test_regular_command_returns_tool_observation_not_feedback(tmp_path):
     assert result.status == "success"
     assert result.steps[0].observation["kind"] == "tool_result"
     assert result.steps[0].observation["tool"] == "run_command"
+
+
+def test_loop_logs_full_feedback_but_sends_bounded_context_to_llm(tmp_path):
+    marker = "FAILED tests/test_large.py::test_value - AssertionError"
+    raw_output = "prefix" * 300 + "\n" + marker + "\n" + "suffix" * 300
+    registry = ToolRegistry()
+    registry.register(
+        "run_validation",
+        lambda arguments: ToolResult(
+            ok=False,
+            data={"exit_code": 1, "stdout": raw_output, "stderr": ""},
+            error="command exited with code 1",
+        ),
+    )
+    llm = MockLLM(
+        [
+            '{"type": "run_validation", "command": "python -m pytest"}',
+            '{"type": "finish", "message": "observed"}',
+        ]
+    )
+    loop = AgentLoop(
+        llm=llm,
+        max_steps=2,
+        tool_registry=registry,
+        guardrail_engine=GuardrailEngine(tmp_path),
+        validator=Validator(max_context_details_chars=240),
+    )
+
+    result = loop.run("inspect a large failure")
+
+    assert result.steps[0].observation["details"] == raw_output
+    feedback_message = llm.calls[1][-1]["content"]
+    assert marker in feedback_message
+    assert len(feedback_message) < 600
+    assert "details_truncated" in feedback_message

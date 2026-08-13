@@ -1071,3 +1071,18 @@ TDD 与设计判断：
 - `run_validation` 复用现有受控命令执行器，不复制 shell 执行逻辑，并与 `run_command` 经过相同 guardrail，避免验证动作成为绕过入口。
 - feedback demo 改为显式请求验证；危险命令 demo 继续使用普通命令，保持治理与反馈职责分离。
 - 相关回归 `17 passed`；加入验证动作不可绕过危险命令规则的覆盖后，全量回归 `100 passed in 7.51s`。
+
+## 2026-08-14 00:35 · T12.2 增强 · 失败分类与有界反馈
+
+触发的流程：
+
+- 我在完成显式验证动作后继续检查 SPEC 与实现的一致性，确认 `type_error`、`lint_failure`、`environment_error` 和 `unknown_failure` 尚未实现，完整 stdout/stderr 也会直接进入模型上下文。
+- 我创建 `feat/t12-feedback-classification`，确定“完整证据留在日志、有界诊断进入上下文”的边界；Codex 协助表驱动 TDD、实现和回归检查。
+
+TDD 与设计判断：
+
+- 第一轮相关测试 `6 failed, 7 passed`，分别暴露四类缺失分类、缺少有界上下文接口，以及循环直接回灌完整输出。
+- 我保留 `LoopStep.observation.details` 的完整原始证据，只对下一次 LLM 调用生成独立 context observation。
+- 默认上下文 details 上限为 1200 字符；压缩优先选择包含失败位置、错误码和异常标识的诊断行。
+- 上下文同时包含完整 evidence 的 SHA-256、原始字符数和 run log 定位，便于核对压缩摘要与原始证据。
+- 相关测试转为 `13 passed`；加入 evidence 引用覆盖后，全量回归 `106 passed in 8.07s`。

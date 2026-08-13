@@ -1,3 +1,5 @@
+import pytest
+
 from safecodeloop.feedback import Feedback, Validator, classify_tool_result
 from safecodeloop.tools import ToolResult
 
@@ -72,3 +74,44 @@ def test_validator_classifies_tool_result():
         summary="Command completed with exit code 0.",
         details="",
     )
+
+
+@pytest.mark.parametrize(
+    ("stdout", "stderr", "expected_kind"),
+    [
+        ("", "error: Incompatible types in assignment  [assignment]", "type_error"),
+        ("src/app.py:1:1: F401 unused import", "", "lint_failure"),
+        ("", "ModuleNotFoundError: No module named 'missing_package'", "environment_error"),
+        ("", "command stopped for an unrecognized reason", "unknown_failure"),
+    ],
+)
+def test_failure_categories_are_specific(stdout, stderr, expected_kind):
+    result = ToolResult(
+        ok=False,
+        data={"exit_code": 1, "stdout": stdout, "stderr": stderr},
+        error="command exited with code 1",
+    )
+
+    assert classify_tool_result(result).kind == expected_kind
+
+
+def test_feedback_context_is_bounded_but_full_details_are_preserved():
+    marker = "FAILED tests/test_app.py::test_add - AssertionError"
+    raw_output = "x" * 800 + "\n" + marker + "\n" + "y" * 800
+    feedback = classify_tool_result(
+        ToolResult(
+            ok=False,
+            data={"exit_code": 1, "stdout": raw_output, "stderr": ""},
+            error="command exited with code 1",
+        )
+    )
+
+    context = feedback.to_context_observation(max_details_chars=240)
+
+    assert feedback.details == raw_output
+    assert len(context["details"]) <= 240
+    assert marker in context["details"]
+    assert context["details_truncated"] is True
+    assert context["evidence_chars"] == len(raw_output)
+    assert len(context["evidence_sha256"]) == 64
+    assert context["evidence_location"] == "run_log.steps[].observation.details"
