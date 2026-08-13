@@ -1021,3 +1021,8 @@ TDD 记录：
 - 模型按动作协议返回 `finish`，AgentLoop 解析并输出 `status: success` 和 `provider smoke test passed.`。
 - 真实验证没有写 run log，不记录 Authorization header 或原始 key。
 - 加入动作协议并更新上下文测试后，全量回归 `87 passed in 5.61s`。
+
+CI 复审：
+
+- PR #3 首次 `unit-test` 成功，但 GitHub 标注 Node.js 20 action runtime 弃用警告。
+- 我查阅官方 action 版本说明后，将 checkout 升级到 v5、setup-python 升级到 v6，使其使用 Node.js 24 runtime，并要求同一 PR 重新通过 CI。
