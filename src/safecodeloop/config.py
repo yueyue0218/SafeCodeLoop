@@ -24,6 +24,10 @@ class SafeCodeLoopConfig:
     approval_required_patterns: tuple[str, ...] = ()
     test_command: str = "python -m pytest"
     model_provider: str = "mock"
+    model: str = "glm-5.2"
+    base_url: str = "https://njusehub.info/v1"
+    request_timeout: float = 60
+    credential_provider: str = "njusehub"
     memory_path: str = ".safecodeloop/memory.json"
 
 
@@ -35,6 +39,10 @@ CONFIG_FIELD_MAP = {
     "approvalRequiredPatterns": "approval_required_patterns",
     "testCommand": "test_command",
     "modelProvider": "model_provider",
+    "model": "model",
+    "baseUrl": "base_url",
+    "requestTimeout": "request_timeout",
+    "credentialProvider": "credential_provider",
     "memoryPath": "memory_path",
 }
 
@@ -73,6 +81,8 @@ def _validate_config(config: SafeCodeLoopConfig) -> SafeCodeLoopConfig:
         raise ConfigError("maxSteps must be an integer")
     if config.max_steps < 1:
         raise ConfigError("maxSteps must be at least 1")
+    if not isinstance(config.request_timeout, (int, float)) or config.request_timeout <= 0:
+        raise ConfigError("requestTimeout must be a positive number")
 
     tuple_fields = {
         "allowed_tools",
@@ -89,7 +99,15 @@ def _validate_config(config: SafeCodeLoopConfig) -> SafeCodeLoopConfig:
             raise ConfigError(f"{_to_external_name(name)} must contain non-empty strings")
         replacements[name] = tuple(value)
 
-    for name in ("workspace_root", "test_command", "model_provider", "memory_path"):
+    for name in (
+        "workspace_root",
+        "test_command",
+        "model_provider",
+        "model",
+        "base_url",
+        "credential_provider",
+        "memory_path",
+    ):
         value = getattr(config, name)
         if not isinstance(value, str) or not value:
             raise ConfigError(f"{_to_external_name(name)} must be a non-empty string")

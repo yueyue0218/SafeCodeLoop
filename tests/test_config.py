@@ -23,6 +23,11 @@ def test_config_file_overrides_defaults(tmp_path):
                 "memoryPath": ".memory/project.json",
                 "blockedCommandPatterns": ["shutdown"],
                 "testCommand": "python -m pytest",
+                "modelProvider": "openai-compatible",
+                "model": "glm-5.2",
+                "baseUrl": "https://njusehub.info/v1",
+                "requestTimeout": 45,
+                "credentialProvider": "njusehub",
             }
         ),
         encoding="utf-8",
@@ -35,6 +40,23 @@ def test_config_file_overrides_defaults(tmp_path):
     assert config.memory_path == ".memory/project.json"
     assert config.blocked_command_patterns == ("shutdown",)
     assert config.test_command == "python -m pytest"
+    assert config.model_provider == "openai-compatible"
+    assert config.model == "glm-5.2"
+    assert config.base_url == "https://njusehub.info/v1"
+    assert config.request_timeout == 45
+    assert config.credential_provider == "njusehub"
+
+
+def test_invalid_request_timeout_is_rejected(tmp_path):
+    path = tmp_path / "safecodeloop.config.json"
+    path.write_text(json.dumps({"requestTimeout": 0}), encoding="utf-8")
+
+    try:
+        load_config(path)
+    except ConfigError as exc:
+        assert "requestTimeout" in str(exc)
+    else:
+        raise AssertionError("expected ConfigError")
 
 
 def test_invalid_max_steps_is_rejected(tmp_path):

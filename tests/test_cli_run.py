@@ -1,6 +1,7 @@
 import json
 
 from safecodeloop.cli import main
+from safecodeloop.llm import LLMResponse
 
 
 def test_run_cli_with_mock_script_succeeds_and_writes_file(tmp_path, capsys):
@@ -62,3 +63,39 @@ def test_run_cli_returns_nonzero_for_blocked_action(tmp_path, capsys):
     assert exit_code != 0
     assert "status: blocked" in output
     assert "recursive root deletion" in output
+
+
+def test_run_cli_uses_configured_real_provider_without_mock_script(tmp_path, monkeypatch, capsys):
+    workspace = tmp_path / "workspace"
+    config = tmp_path / "config.json"
+    config.write_text(
+        json.dumps(
+            {
+                "modelProvider": "openai-compatible",
+                "model": "glm-5.2",
+                "baseUrl": "https://njusehub.info/v1",
+                "credentialProvider": "njusehub",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class FakeStore:
+        def get_key(self, provider):
+            assert provider == "njusehub"
+            return "secret"
+
+    class FakeLLM:
+        def generate(self, messages):
+            return LLMResponse(
+                content=json.dumps({"type": "finish", "message": "real provider selected"}),
+                provider="fake",
+            )
+
+    monkeypatch.setattr("safecodeloop.cli.CredentialStore", FakeStore)
+    monkeypatch.setattr("safecodeloop.cli.OpenAICompatibleLLM", lambda **kwargs: FakeLLM())
+
+    exit_code = main(["run", "--config", str(config), "finish", "task"])
+
+    assert exit_code == 0
+    assert "real provider selected" in capsys.readouterr().out

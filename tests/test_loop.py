@@ -12,6 +12,9 @@ def test_loop_stops_successfully_when_llm_returns_finish():
     assert result.final_message == "done"
     assert len(result.steps) == 1
     assert result.steps[0].action.type == "finish"
+    assert llm.calls[0][0]["role"] == "system"
+    assert "Return exactly one JSON action object" in llm.calls[0][0]["content"]
+    assert '"type":"finish"' in llm.calls[0][0]["content"]
 
 
 def test_invalid_llm_output_becomes_parse_error_observation():

@@ -1,6 +1,9 @@
+import json
 import re
 from dataclasses import dataclass, field
 from typing import Any, Protocol
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 
 class LLMError(RuntimeError):
@@ -66,3 +69,73 @@ class MockLLM:
         )
         self._index += 1
         return response
+
+
+class OpenAICompatibleLLM:
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        base_url: str = "https://api.openai.com/v1",
+        timeout: float = 60,
+        transport=None,
+    ):
+        if not api_key:
+            raise LLMError("API credential is not configured")
+        if not model:
+            raise LLMError("model must not be empty")
+        if timeout <= 0:
+            raise LLMError("timeout must be positive")
+        self._api_key = api_key
+        self.model = model
+        self.base_url = base_url.rstrip("/")
+        self.timeout = timeout
+        self._transport = transport or urlopen
+
+    def generate(self, messages: list[dict[str, str]]) -> LLMResponse:
+        payload = json.dumps(
+            {"model": self.model, "messages": messages, "stream": False}
+        ).encode("utf-8")
+        request = Request(
+            f"{self.base_url}/chat/completions",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+
+        try:
+            with self._transport(request, timeout=self.timeout) as response:
+                body = json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            if exc.code == 401:
+                raise LLMError("LLM authentication failed") from exc
+            if exc.code == 429:
+                raise LLMError("LLM rate limit exceeded") from exc
+            raise LLMError(f"LLM request failed with HTTP {exc.code}") from exc
+        except (TimeoutError, URLError) as exc:
+            reason = getattr(exc, "reason", exc)
+            if isinstance(reason, TimeoutError):
+                raise LLMError("LLM request timed out") from exc
+            raise LLMError("LLM network request failed") from exc
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise LLMError("LLM returned invalid JSON") from exc
+
+        try:
+            content = body["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise LLMError("invalid chat completion response") from exc
+        if not isinstance(content, str):
+            raise LLMError("invalid chat completion response")
+
+        usage = body.get("usage", {})
+        metadata = {"model": body.get("model", self.model)}
+        if isinstance(usage, dict):
+            metadata["usage"] = usage
+        return LLMResponse(
+            content=content,
+            provider="openai-compatible",
+            metadata=metadata,
+        )

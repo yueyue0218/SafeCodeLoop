@@ -9,6 +9,19 @@ from safecodeloop.memory import MemoryStore
 from safecodeloop.tools import ToolRegistry
 
 
+ACTION_PROTOCOL = """You are the decision component of SafeCodeLoop.
+Return exactly one JSON action object and no markdown or explanatory text.
+Allowed actions:
+- {"type":"list_files","path":"optional/relative/path"}
+- {"type":"read_file","path":"relative/path"}
+- {"type":"write_file","path":"relative/path","content":"file content"}
+- {"type":"run_command","command":"command to execute"}
+- {"type":"remember","content":"fact","kind":"optional kind"}
+- {"type":"request_approval","reason":"reason"}
+- {"type":"finish","message":"result summary"}
+Use only relative paths inside the workspace. Use finish only when the task is complete."""
+
+
 @dataclass(frozen=True)
 class LoopStep:
     index: int
@@ -157,14 +170,17 @@ class AgentLoop:
         )
 
     def _initial_messages(self, task: str) -> list[dict[str, str]]:
-        messages = [{"role": "user", "content": task}]
+        messages = [
+            {"role": "system", "content": ACTION_PROTOCOL},
+            {"role": "user", "content": task},
+        ]
         if self.memory_store is None:
             return messages
 
         memory_context = self._build_memory_context(task)
         if not memory_context:
             return messages
-        return [{"role": "system", "content": memory_context}, *messages]
+        return [messages[0], {"role": "system", "content": memory_context}, *messages[1:]]
 
     def _build_memory_context(self, task: str) -> str:
         if self.memory_context_budget < len("memory_context:\n"):

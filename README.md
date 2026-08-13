@@ -56,7 +56,7 @@ python -m pytest
 Current local result:
 
 ```text
-76 passed
+87 passed
 ```
 
 ## CLI Usage
@@ -133,11 +133,45 @@ Example config:
   "approvalRequiredPatterns": [],
   "testCommand": "python -m pytest",
   "modelProvider": "mock",
+  "model": "glm-5.2",
+  "baseUrl": "https://njusehub.info/v1",
+  "requestTimeout": 60,
+  "credentialProvider": "njusehub",
   "memoryPath": ".safecodeloop/memory.json"
 }
 ```
 
 See `safecodeloop.config.example.json`.
+
+### OpenAI-compatible provider
+
+SafeCodeLoop can call an OpenAI-compatible `/chat/completions` endpoint while keeping the agent loop, action parsing, tools, guardrails, feedback, and stopping rules in this repository.
+
+Store the API key securely:
+
+```powershell
+safecodeloop key set njusehub
+```
+
+Create a config file with `modelProvider` set to `openai-compatible`, select the model and base URL, then run without `--mock-script`:
+
+```powershell
+safecodeloop run --config .\real-provider.json --workspace .\tmp-real list the workspace and finish
+```
+
+The NJUSE Hub values shown in its access guide are:
+
+```json
+{
+  "modelProvider": "openai-compatible",
+  "model": "glm-5.2",
+  "baseUrl": "https://njusehub.info/v1",
+  "requestTimeout": 60,
+  "credentialProvider": "njusehub"
+}
+```
+
+Do not put the API key in this file. Provider and model availability can change; check the platform's model marketplace before a real run.
 
 ## Credentials
 
@@ -214,7 +248,7 @@ SafeCodeLoop is a teaching harness, not a production sandbox. It uses determinis
 
 ## Known Limitations
 
-- Real LLM adapter is not implemented; tests and demos use `MockLLM`.
+- Core tests and deterministic demos use `MockLLM`; real-provider runs require network access, a configured key, and an available compatible model.
 - A usable OS keyring backend must be available on the target system.
 - Docker build is pending until Docker Desktop is installed.
 - WebUI is intentionally not implemented; this follows the CLI-only plus release-link route allowed for Agent Harness submissions.

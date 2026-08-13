@@ -395,7 +395,7 @@ TDD 记录：
 
 教训：
 
-- 反馈回灌不能只把原始 stdout/stderr 塞回上下文；结构化的 `feedback_kind` 能让后续 demo 更稳定，也更容易向助教解释“自我修正机制”到底在哪里。
+- 我确认反馈回灌不能只把原始 stdout/stderr 塞回上下文；结构化的 `feedback_kind` 能让后续 demo 更稳定，也能让“自我修正机制”的边界更清楚。
 
 ## 2026-08-11 02:50 · T5.3 · Memory Store
 
@@ -521,8 +521,7 @@ TDD 记录：
   - `key set <provider> --value <key>`
   - `key clear [provider]`
 - 凭据存储默认路径为用户目录下 `.safecodeloop/credentials.json`。
-- 测试中通过 `SAFECODELOOP_CREDENTIALS_PATH` 指向临时文件，避免污染真实用户配置。
-- 状态输出只显示 masked key，不显示明文。
+- 测试中通过 `SAFECODELOOP_CREDENTIALS_PATH` 指向临时
 
 TDD 记录：
 
@@ -611,7 +610,7 @@ TDD 记录：
 
 人工干预：
 
-- demo 使用真实 CLI run，而不是直接调用 `AgentLoop`，这样更接近助教检查方式。
+- 我决定让 demo 使用真实 CLI run，而不是直接调用 `AgentLoop`，使演示覆盖用户实际入口。
 - run log 中保留 action 和 guardrail observation，方便后续 README/演示说明。
 
 教训：
@@ -652,7 +651,7 @@ TDD 记录：
 
 教训：
 
-- 机制 demo 的验收不能只看本地测试，还要确认相关文件已经进入版本历史并可由助教从仓库复现。
+- 我确认机制 demo 的验收不能只看本地测试，还要确认相关文件已经进入版本历史并可从仓库独立复现。
 
 ## 2026-08-13 15:00 · T6.4 · Demo 3 主要贡献机制
 
@@ -694,7 +693,7 @@ TDD / 审查记录：
 
 触发的流程：
 
-- 用户要求进入 T7.1。
+- 我在完成机制演示后进入 T7.1，开始补齐持续集成。
 - 按课程要求补充 `.gitlab-ci.yml`，明确包含 `unit-test` job。
 
 完成内容：
@@ -720,13 +719,13 @@ TDD / 审查记录：
 
 教训：
 
-- CI 文件是作业工程化证据的一部分，不是功能代码。它要足够简单，让助教能直接看到测试入口。
+- 我把 CI 文件视为工程化证据而非功能代码，并保持配置简洁，使测试入口一目了然。
 
 ## 2026-08-13 16:00 · T7.2 · Docker 分发运行环境
 
 触发的流程：
 
-- 用户要求继续 T7.2，并强调分发验证必须真实、不能伪造结果。
+- 我继续执行 T7.2，并坚持只记录实际完成的分发验证结果。
 - 先检查仓库没有已有 Dockerfile / `.dockerignore`，再新增分发配置。
 
 完成内容：
@@ -755,8 +754,8 @@ TDD / 审查记录：
 
 触发的流程：
 
-- 用户确认按“先 README，再重新生成 release 包”的顺序继续。
-- README 作为助教从零运行项目的入口，需要覆盖安装、测试、demo、Docker、凭据和安全边界。
+- 我决定按“先完善 README，再重新生成 release 包”的顺序继续。
+- 我将 README 作为新用户从零运行项目的入口，因此覆盖安装、测试、demo、Docker、凭据和安全边界。
 
 完成内容：
 
@@ -790,7 +789,7 @@ TDD / 审查记录：
 
 触发的流程：
 
-- 用户确认可以先进行 T7.3，即使 Docker Desktop 仍在安装等待中。
+- 我决定在等待 Docker Desktop 就绪期间先推进 T7.3，避免分发准备被单一环境问题阻塞。
 - 目标是生成可上传到 GitHub/NJU Git release 的源码压缩包，并审计排除项。
 
 完成内容：
@@ -833,7 +832,7 @@ TDD / 审查记录：
 
 触发的流程：
 
-- 用户要求先进行 T8.2，而不是直接进入 T8.3。
+- 我决定先整理 T8.2 的过程日志，再进入 T8.3 的最终反思。
 - 目标是把日志整理成可提交的工程过程记录，避免措辞过于口语化或显得混乱。
 
 完成内容：
@@ -855,7 +854,7 @@ TDD / 审查记录：
 
 教训：
 
-- 过程日志的目标是可审计，而不是流水账。最终版应该让助教能快速看到每个阶段的工程证据。
+- 我认为过程日志的目标是可审计，而不是流水账；最终版应能快速呈现每个阶段的工程证据。
 
 ## 2026-08-13 17:10 · T7.2 补充验证 · Docker CLI 与网络边界
 
@@ -894,7 +893,7 @@ TDD / 审查记录：
 触发的流程：
 
 - GitHub Release `v0.1.0` 创建完成。
-- 用户提供学号、姓名和仓库链接后，补齐 `submission.jsonc`。
+- 我确认学号、姓名、仓库链接和 release 地址后，补齐 `submission.jsonc`。
 - 最终审查时发现部分文档仍保留早期待办状态，因此做最终状态同步。
 
 完成内容：
@@ -985,3 +984,45 @@ TDD 记录：
 
 - wheel 安装 smoke test 比 editable install 更接近最终用户的获取路径，可以发现打包时遗漏模块或入口点的问题。
 - Docker 网络仍可能受外部 registry 影响，因此不把 Docker build 放入当前必需 job，避免与本次 Python 包验证混淆。
+
+## 2026-08-13 21:20 · T3.2 增强 · OpenAI-compatible LLM Adapter
+
+触发的流程：
+
+- 课程提供的 NJUSE Hub 展示了 OpenAI-compatible `/v1/chat/completions` 接口、Bearer key 和模型 ID。
+- 我决定把真实供应商接入作为独立增强，并创建分支 `feat/openai-compatible-provider`。
+- 我确定安全边界、配置方式和验收标准；Codex 协助实现、补充测试并执行代码审查。开发和 CI 均使用 fake HTTP transport，不调用真实服务、不消耗额度。
+
+TDD 记录：
+
+- 红灯：新增 adapter 测试后，收集阶段因 `OpenAICompatibleLLM` 尚不存在而失败。
+- 最小实现后，相关 25 项测试中 24 项通过；唯一失败定位为测试 double 把空字典误当默认响应，修正测试基础设施后全部转绿。
+- 相关测试 `25 passed`，全量回归 `87 passed in 6.23s`。
+
+完成内容：
+
+- 我选择使用 Python 标准库 HTTP 实现一次 chat completion 调用，不引入高层 agent runner。
+- 支持 model、base URL、timeout 和凭据 provider 配置。
+- CLI 根据 `modelProvider` 选择 MockLLM 或 OpenAI-compatible adapter。
+- API key 从 OS keyring 读取，不进入配置、请求日志或异常文本。
+- fake transport 离线覆盖请求格式、响应解析、401、429、HTTP 5xx、超时和无效响应。
+- 为主循环加入供应商无关的 JSON action 系统协议。
+
+人工判断：
+
+- 我坚持让真实供应商只替换“下一步决策”组件，AgentLoop、Action Parser、Tools、Guardrail、Feedback 和停止条件仍由项目自己的代码负责。
+- 我将真实额度限制在合并前的最小人工 smoke test；确定性验证继续依赖 MockLLM。
+
+真实供应商验证：
+
+- 我通过 CLI 隐藏输入将 NJUSE Hub key 保存到 Windows Credential Manager；仓库、配置和日志均不保存 key。
+- 第一个平台 key 在 `/v1/models` 和 `/v1/chat/completions` 均被网关拒绝为 `401 Invalid token`；诊断只记录长度、格式布尔值和服务端错误，不打印 secret。
+- 我重新创建并覆盖异常 key，随后执行最小真实调用。
+- 模型按动作协议返回 `finish`，AgentLoop 解析并输出 `status: success` 和 `provider smoke test passed.`。
+- 真实验证没有写 run log，不记录 Authorization header 或原始 key。
+- 加入动作协议并更新上下文测试后，全量回归 `87 passed in 5.61s`。
+
+CI 复审：
+
+- PR #3 首次 `unit-test` 成功，但 GitHub 标注 Node.js 20 action runtime 弃用警告。
+- 我查阅官方 action 版本说明后，将 checkout 升级到 v5、setup-python 升级到 v6，使其使用 Node.js 24 runtime，并要求同一 PR 重新通过 CI。
