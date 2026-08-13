@@ -58,7 +58,7 @@ python -m pytest
 Current local result:
 
 ```text
-106 passed
+114 passed
 ```
 
 ## CLI Usage
@@ -78,6 +78,8 @@ The run log records each step:
 - final status
 
 Validation feedback is classified as `pass`, `test_failure`, `syntax_error`, `type_error`, `lint_failure`, `timeout`, `environment_error`, or `unknown_failure`. Full evidence remains in the run log, while the model receives a bounded diagnostic excerpt with the original character count and SHA-256 reference.
+
+The validation loop has deterministic stopping controls. Code or project-configuration writes require a later passing validation before `finish` can succeed. Validation runs have a configurable budget, and repeated failures with the same category and summary open a circuit instead of looping indefinitely. These checks also apply after an approved action is resumed.
 
 ## Demos
 
@@ -132,6 +134,8 @@ Example config:
 {
   "workspaceRoot": ".",
   "maxSteps": 5,
+  "maxValidations": 4,
+  "maxRepeatedFailures": 2,
   "allowedTools": ["list_files", "read_file", "write_file", "run_command", "run_validation"],
   "blockedCommandPatterns": [],
   "approvalRequiredPatterns": [],

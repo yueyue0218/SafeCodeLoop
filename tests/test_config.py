@@ -20,6 +20,8 @@ def test_config_file_overrides_defaults(tmp_path):
             {
                 "workspaceRoot": "workspace",
                 "maxSteps": 8,
+                "maxValidations": 6,
+                "maxRepeatedFailures": 3,
                 "memoryPath": ".memory/project.json",
                 "blockedCommandPatterns": ["shutdown"],
                 "testCommand": "python -m pytest",
@@ -37,6 +39,8 @@ def test_config_file_overrides_defaults(tmp_path):
 
     assert config.workspace_root == "workspace"
     assert config.max_steps == 8
+    assert config.max_validations == 6
+    assert config.max_repeated_failures == 3
     assert config.memory_path == ".memory/project.json"
     assert config.blocked_command_patterns == ("shutdown",)
     assert config.test_command == "python -m pytest"
@@ -81,6 +85,19 @@ def test_non_integer_max_steps_is_rejected(tmp_path):
         assert "maxSteps" in str(exc)
     else:
         raise AssertionError("expected ConfigError")
+
+
+def test_invalid_validation_limits_are_rejected(tmp_path):
+    for field in ("maxValidations", "maxRepeatedFailures"):
+        path = tmp_path / f"{field}.json"
+        path.write_text(json.dumps({field: 0}), encoding="utf-8")
+
+        try:
+            load_config(path)
+        except ConfigError as exc:
+            assert field in str(exc)
+        else:
+            raise AssertionError(f"expected ConfigError for {field}")
 
 
 def test_config_blocked_pattern_affects_guardrail(tmp_path):

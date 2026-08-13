@@ -51,9 +51,15 @@ class AgentLoop:
         memory_store: MemoryStore | None = None,
         memory_context_budget: int = 1000,
         approval_store: ApprovalStore | None = None,
+        max_validations: int = 4,
+        max_repeated_failures: int = 2,
     ):
         if max_steps < 1:
             raise ValueError("max_steps must be at least 1")
+        if max_validations < 1:
+            raise ValueError("max_validations must be at least 1")
+        if max_repeated_failures < 1:
+            raise ValueError("max_repeated_failures must be at least 1")
         self.llm = llm
         self.max_steps = max_steps
         self.tool_registry = tool_registry
@@ -62,10 +68,16 @@ class AgentLoop:
         self.memory_store = memory_store
         self.memory_context_budget = memory_context_budget
         self.approval_store = approval_store
+        self.max_validations = max_validations
+        self.max_repeated_failures = max_repeated_failures
 
     def run(self, task: str) -> RunResult:
         steps: list[LoopStep] = []
         messages = self._initial_messages(task)
+        validation_count = 0
+        completion_blocker: str | None = None
+        previous_failure: tuple[str, str] | None = None
+        repeated_failure_count = 0
 
         for index in range(self.max_steps):
             response = self.llm.generate(messages)
@@ -93,6 +105,26 @@ class AgentLoop:
                 continue
 
             if action.type == "finish":
+                if completion_blocker is not None:
+                    observation = {
+                        "kind": "completion_rejected",
+                        "reason": completion_blocker,
+                    }
+                    steps.append(
+                        LoopStep(
+                            index=index,
+                            llm_response=response.content,
+                            action=action,
+                            observation=observation,
+                        )
+                    )
+                    messages.append(
+                        {
+                            "role": "system",
+                            "content": f"completion_rejected: {completion_blocker}",
+                        }
+                    )
+                    continue
                 observation = {"kind": "action_parsed", "action_type": action.type}
                 steps.append(
                     LoopStep(
@@ -154,14 +186,49 @@ class AgentLoop:
                 )
                 continue
 
+            if action.type == "run_validation" and validation_count >= self.max_validations:
+                observation = {
+                    "kind": "validation_control",
+                    "status": "budget_exhausted",
+                    "validation_count": validation_count,
+                    "max_validations": self.max_validations,
+                }
+                steps.append(LoopStep(index=index, llm_response=response.content, action=action, observation=observation))
+                return RunResult(
+                    status="validation_budget_exhausted",
+                    final_message="Validation budget exhausted before another validation run.",
+                    steps=steps,
+                )
+
             tool_result = self.tool_registry.dispatch(action)
             if self.validator is not None and action.type == "run_validation":
+                validation_count += 1
                 feedback = self.validator.validate(tool_result)
                 observation = feedback.to_observation()
                 context_observation = self.validator.context_observation(feedback)
+                if feedback.passed:
+                    completion_blocker = None
+                    previous_failure = None
+                    repeated_failure_count = 0
+                else:
+                    completion_blocker = "validation has not passed"
+                    failure_key = (feedback.kind, feedback.summary)
+                    repeated_failure_count = (
+                        repeated_failure_count + 1 if failure_key == previous_failure else 1
+                    )
+                    previous_failure = failure_key
+                    observation["failure_count"] = repeated_failure_count
+                    context_observation["failure_count"] = repeated_failure_count
             else:
                 observation = tool_result.to_observation(action.type)
                 context_observation = observation
+                if (
+                    self.validator is not None
+                    and action.type == "write_file"
+                    and tool_result.ok
+                    and self._is_code_change(str(action.arguments.get("path", "")))
+                ):
+                    completion_blocker = "workspace changes require validation"
             steps.append(
                 LoopStep(
                     index=index,
@@ -176,6 +243,17 @@ class AgentLoop:
                     "content": f"tool_result: {context_observation}",
                 }
             )
+            if (
+                action.type == "run_validation"
+                and self.validator is not None
+                and not feedback.passed
+                and repeated_failure_count >= self.max_repeated_failures
+            ):
+                return RunResult(
+                    status="repeated_validation_failure",
+                    final_message="Repeated validation failure circuit opened.",
+                    steps=steps,
+                )
 
         return RunResult(
             status="max_steps",
@@ -192,10 +270,21 @@ class AgentLoop:
         record = self.approval_store.get(approval_id)
         self.approval_store.consume(approval_id, record.action)
         tool_result = self.tool_registry.dispatch(record.action)
+        validation_count = 0
+        completion_blocker: str | None = None
+        previous_failure: tuple[str, str] | None = None
+        repeated_failure_count = 0
         if self.validator is not None and record.action.type == "run_validation":
+            validation_count = 1
             feedback = self.validator.validate(tool_result)
             observation = feedback.to_observation()
             context_observation = self.validator.context_observation(feedback)
+            if not feedback.passed:
+                completion_blocker = "validation has not passed"
+                previous_failure = (feedback.kind, feedback.summary)
+                repeated_failure_count = 1
+                observation["failure_count"] = repeated_failure_count
+                context_observation["failure_count"] = repeated_failure_count
         else:
             observation = tool_result.to_observation(record.action.type)
             context_observation = observation
@@ -231,6 +320,11 @@ class AgentLoop:
                 continue
 
             if action.type == "finish":
+                if completion_blocker is not None:
+                    rejected = {"kind": "completion_rejected", "reason": completion_blocker}
+                    steps.append(LoopStep(index=index, llm_response=response.content, action=action, observation=rejected))
+                    messages.append({"role": "system", "content": f"completion_rejected: {completion_blocker}"})
+                    continue
                 steps.append(
                     LoopStep(
                         index=index,
@@ -260,16 +354,45 @@ class AgentLoop:
                 steps.append(LoopStep(index=index, llm_response=response.content, action=action, observation=guardrail_observation))
                 return RunResult(decision.status, decision.reason, steps, approval_id=next_id)
 
+            if action.type == "run_validation" and validation_count >= self.max_validations:
+                control = {
+                    "kind": "validation_control",
+                    "status": "budget_exhausted",
+                    "validation_count": validation_count,
+                    "max_validations": self.max_validations,
+                }
+                steps.append(LoopStep(index=index, llm_response=response.content, action=action, observation=control))
+                return RunResult("validation_budget_exhausted", "Validation budget exhausted before another validation run.", steps)
+
             next_result = self.tool_registry.dispatch(action)
             if self.validator is not None and action.type == "run_validation":
+                validation_count += 1
                 next_feedback = self.validator.validate(next_result)
                 next_observation = next_feedback.to_observation()
                 next_context_observation = self.validator.context_observation(next_feedback)
+                if next_feedback.passed:
+                    completion_blocker = None
+                    previous_failure = None
+                    repeated_failure_count = 0
+                else:
+                    completion_blocker = "validation has not passed"
+                    failure_key = (next_feedback.kind, next_feedback.summary)
+                    repeated_failure_count = repeated_failure_count + 1 if failure_key == previous_failure else 1
+                    previous_failure = failure_key
+                    next_observation["failure_count"] = repeated_failure_count
+                    next_context_observation["failure_count"] = repeated_failure_count
             else:
                 next_observation = next_result.to_observation(action.type)
                 next_context_observation = next_observation
             steps.append(LoopStep(index=index, llm_response=response.content, action=action, observation=next_observation))
             messages.append({"role": "system", "content": f"tool_result: {next_context_observation}"})
+            if (
+                action.type == "run_validation"
+                and self.validator is not None
+                and not next_feedback.passed
+                and repeated_failure_count >= self.max_repeated_failures
+            ):
+                return RunResult("repeated_validation_failure", "Repeated validation failure circuit opened.", steps)
 
         return RunResult("max_steps", "Reached max steps without finish action.", steps)
 
@@ -303,3 +426,18 @@ class AgentLoop:
         if not lines:
             return ""
         return "memory_context:\n" + "\n".join(lines)
+
+    @staticmethod
+    def _is_code_change(path: str) -> bool:
+        lowered = path.lower()
+        code_suffixes = (
+            ".py", ".pyi", ".js", ".jsx", ".ts", ".tsx", ".java", ".kt",
+            ".c", ".h", ".cc", ".cpp", ".cs", ".go", ".rs", ".rb", ".php",
+            ".sh", ".ps1", ".sql", ".lean", ".toml", ".yaml", ".yml",
+        )
+        config_names = {
+            "dockerfile", "makefile", "pyproject.toml", "package.json",
+            "package-lock.json", "requirements.txt",
+        }
+        name = lowered.replace("\\", "/").rsplit("/", 1)[-1]
+        return lowered.endswith(code_suffixes) or name in config_names

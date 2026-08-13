@@ -14,6 +14,8 @@ class ConfigError(ValueError):
 class SafeCodeLoopConfig:
     workspace_root: str = "."
     max_steps: int = 5
+    max_validations: int = 4
+    max_repeated_failures: int = 2
     allowed_tools: tuple[str, ...] = (
         "list_files",
         "read_file",
@@ -35,6 +37,8 @@ class SafeCodeLoopConfig:
 CONFIG_FIELD_MAP = {
     "workspaceRoot": "workspace_root",
     "maxSteps": "max_steps",
+    "maxValidations": "max_validations",
+    "maxRepeatedFailures": "max_repeated_failures",
     "allowedTools": "allowed_tools",
     "blockedCommandPatterns": "blocked_command_patterns",
     "approvalRequiredPatterns": "approval_required_patterns",
@@ -82,6 +86,15 @@ def _validate_config(config: SafeCodeLoopConfig) -> SafeCodeLoopConfig:
         raise ConfigError("maxSteps must be an integer")
     if config.max_steps < 1:
         raise ConfigError("maxSteps must be at least 1")
+    for field_name, external_name in (
+        ("max_validations", "maxValidations"),
+        ("max_repeated_failures", "maxRepeatedFailures"),
+    ):
+        value = getattr(config, field_name)
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ConfigError(f"{external_name} must be an integer")
+        if value < 1:
+            raise ConfigError(f"{external_name} must be at least 1")
     if not isinstance(config.request_timeout, (int, float)) or config.request_timeout <= 0:
         raise ConfigError("requestTimeout must be a positive number")
 

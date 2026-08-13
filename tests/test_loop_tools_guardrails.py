@@ -1,5 +1,6 @@
 from safecodeloop.actions import Action
 from safecodeloop.approval import ApprovalStore
+from safecodeloop.feedback import Validator
 from safecodeloop.guardrails import GuardrailEngine
 from safecodeloop.llm import MockLLM
 from safecodeloop.loop import AgentLoop
@@ -138,3 +139,36 @@ def test_rejected_approval_never_calls_tool(tmp_path):
     else:
         raise AssertionError("expected rejected approval to fail")
     assert called is False
+
+
+def test_resumed_failed_validation_cannot_finish_successfully(tmp_path):
+    registry = ToolRegistry()
+    registry.register(
+        "run_validation",
+        lambda arguments: ToolResult(
+            ok=False,
+            data={
+                "exit_code": 1,
+                "stdout": "FAILED tests/test_app.py::test_value - AssertionError",
+                "stderr": "",
+            },
+            error="command exited with code 1",
+        ),
+    )
+    store = ApprovalStore(tmp_path / "approvals.json", SIGNING_KEY)
+    action = Action(type="run_validation", arguments={"command": "python -m pip install --version"})
+    record = store.create(action, "dependency install requires approval")
+    store.approve(record.id)
+    loop = AgentLoop(
+        llm=MockLLM(['{"type": "finish", "message": "done"}']),
+        max_steps=1,
+        tool_registry=registry,
+        guardrail_engine=GuardrailEngine(tmp_path),
+        validator=Validator(),
+        approval_store=store,
+    )
+
+    result = loop.resume(record.id, "validate dependency state")
+
+    assert result.status != "success"
+    assert result.steps[1].observation["kind"] == "completion_rejected"
