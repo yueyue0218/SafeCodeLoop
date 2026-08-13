@@ -5,10 +5,10 @@
 - [ ] `python -m pytest` passes locally.
 - [ ] `.gitlab-ci.yml` contains a `unit-test` job that runs `python -m pytest`.
 - [ ] `Dockerfile` and `.dockerignore` are present.
-- [ ] Docker build is verified when Docker Desktop is available.
-- [ ] `README.md` is complete.
-- [ ] `REFLECTION.md` is reviewed and personalized by the project author.
-- [ ] `submission.jsonc` is outside the source archive and filled with real student/repository/release values.
+- [x] Docker CLI is available; build was attempted and blocked by Docker Hub network access.
+- [x] `README.md` is complete.
+- [x] `REFLECTION.md` is reviewed and personalized by the project author.
+- [x] `submission.jsonc` is outside the source archive and filled with real student/repository/release values.
 
 ## Package Command
 
@@ -50,6 +50,4 @@ release\SafeCodeLoop-0.1.0.zip
 
 ## Known Pending Items
 
-- Docker build is pending until Docker Desktop is installed and running.
-- README and reflection are handled in Phase 8.
-- GitHub/NJU Git release URL is handled in T7.4.
+- Docker image build should be retried when Docker Hub `auth.docker.io` / `registry-1.docker.io` is reachable.

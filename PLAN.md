@@ -920,6 +920,8 @@ docker run --rm safecodeloop --help
 
 ### T7.4 创建仓库 Release
 
+状态：已完成。
+
 目标：生成 `submission.jsonc` 需要填写的 release 链接。
 
 涉及内容：
@@ -937,6 +939,12 @@ docker run --rm safecodeloop --help
 - 打开 release 链接确认可访问。
 - 确认 `submission.jsonc` 指向真实仓库和 release。
 
+实际验证：
+
+- GitHub Release 已创建：`https://github.com/yueyue0218/SafeCodeLoop/releases/tag/v0.1.0`。
+- release asset 上传 `SafeCodeLoop-0.1.0.zip`。
+- `submission.jsonc` 已填写真实 release 链接。
+
 依赖：T7.3。
 
 可并行：否。
@@ -945,7 +953,7 @@ docker run --rm safecodeloop --help
 
 ### T8.1 编写 README
 
-状态：已完成初版；真实 Release 链接待 T7.4 后补充。
+状态：已完成。
 
 目标：让助教能从零运行项目。
 
@@ -977,13 +985,15 @@ docker run --rm safecodeloop --help
 - 覆盖项目简介、安装、CLI 使用、三个 mock demo、测试命令、Docker build/run、key 配置风险、安全边界、目录结构、release 包和已知限制。
 - 本地验证 `python -m pytest`：`72 passed`。
 - 本地验证 `python -m safecodeloop --help` 和 `safecodeloop --help` 均可用。
-- README 如实记录 Docker Desktop 尚未安装，因此 Docker build 未本地验证。
+- README 如实记录 Docker CLI 已验证可用，但 Docker Hub 网络不可达导致 build 未完成。
 
 依赖：T6.1、T7.2。
 
 可并行：是。
 
 ### T8.2 维护 `AGENT_LOG.md`
+
+状态：已完成最终整理。
 
 目标：记录 AI 协作全过程。
 
@@ -1005,9 +1015,17 @@ docker run --rm safecodeloop --help
 
 - 每个已完成 PLAN task 都有对应日志。
 
+实际验证：
+
+- 已覆盖 T2.1/T2.2 至 T8.3 的主要实现、验证和交付过程。
+- 已补充 release 包准备、Docker 验证边界和最终日志整理记录。
+- 已清理不适合最终提交的口语化措辞。
+
 依赖：贯穿全程。
 
 ### T8.3 编写 `REFLECTION.md`
+
+状态：已完成。
 
 目标：完成 1500-2500 字反思报告。
 
@@ -1034,6 +1052,8 @@ docker run --rm safecodeloop --help
 
 ### T8.4 填写 `submission.jsonc`
 
+状态：已完成。
+
 目标：完成老师补充要求的提交元数据。
 
 文件位置：
@@ -1058,23 +1078,28 @@ docker run --rm safecodeloop --help
 - 不要放进源码压缩包内部。
 - 和源码压缩包并列提交到 selearning。
 
+实际验证：
+
+- `submission.jsonc` 位于 `C:\Users\HP\AI4SE_Final_Project\submission.jsonc`，不在源码压缩包内部。
+- 已填写学号、姓名、仓库链接、`is_deployed=false` 和真实 release 链接。
+
 依赖：T7.4。
 
 ## 11. 最终提交清单
 
-- [ ] `SPEC.md`
-- [ ] `PLAN.md`
-- [ ] `SPEC_PROCESS.md`
-- [ ] 源代码
-- [ ] mock LLM 单元测试
-- [ ] 机制演示
-- [ ] `README.md`
-- [ ] `AGENT_LOG.md`
-- [ ] `REFLECTION.md`
-- [ ] `.gitlab-ci.yml`，包含 `unit-test`
-- [ ] Dockerfile 或等价分发产物
-- [ ] 最后一次 CI pass 记录
-- [ ] GitHub/NJU Git 仓库链接
-- [ ] release 链接
-- [ ] `submission.jsonc` 与源码压缩包并列提交
-- [ ] 仓库和压缩包内无真实凭据
+- [x] `SPEC.md`
+- [x] `PLAN.md`
+- [x] `SPEC_PROCESS.md`
+- [x] 源代码
+- [x] mock LLM 单元测试
+- [x] 机制演示
+- [x] `README.md`
+- [x] `AGENT_LOG.md`
+- [x] `REFLECTION.md`
+- [x] `.gitlab-ci.yml`，包含 `unit-test`
+- [x] Dockerfile 或等价分发产物
+- [x] 本地单元测试 pass 记录
+- [x] GitHub/NJU Git 仓库链接
+- [x] release 链接
+- [x] `submission.jsonc` 与源码压缩包并列提交
+- [x] 仓库和压缩包内无真实凭据

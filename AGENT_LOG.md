@@ -851,7 +851,7 @@ TDD / 审查记录：
 人工判断：
 
 - 日志不需要暴露所有对话细节，但必须能支撑“使用 AI 协作、TDD、复审、测试、分发”的过程证据。
-- 对尚未完成的 Docker build、release URL、reflection、submission 不做虚假完成描述。
+- 对当时尚未完成的 Docker build、release URL、reflection、submission 不做虚假完成描述。
 
 教训：
 
@@ -888,3 +888,38 @@ TDD / 审查记录：
 教训：
 
 - Docker 分发验证要拆开记录：CLI 是否可用、镜像能否拉取、Dockerfile 能否 build、容器能否 run。这样网络问题不会被误判为项目打包问题。
+
+## 2026-08-13 18:20 · T7.4/T8.4 · Release 与提交元数据完成
+
+触发的流程：
+
+- GitHub Release `v0.1.0` 创建完成。
+- 用户提供学号、姓名和仓库链接后，补齐 `submission.jsonc`。
+- 最终审查时发现部分文档仍保留早期待办状态，因此做最终状态同步。
+
+完成内容：
+
+- release 链接确认：`https://github.com/yueyue0218/SafeCodeLoop/releases/tag/v0.1.0`。
+- `submission.jsonc` 填写：
+  - 学号：`241880166`
+  - 姓名：`曹潇月`
+  - 仓库：`https://github.com/yueyue0218/SafeCodeLoop`
+  - `is_deployed=false`
+  - release 链接为 GitHub Release `v0.1.0`
+- `submission.jsonc` 保持在源码压缩包外层目录。
+- 更新 `PLAN.md`、`SPEC_PROCESS.md`、`RELEASE_CHECKLIST.md` 中过时的 release 状态。
+
+验证记录：
+
+- `python -m pytest`：`72 passed`。
+- release zip 审计：关键文件齐全，无 `.git/`、`.env`、`.safecodeloop/`、缓存、`.pyc` 或日志。
+- `submission.jsonc` 未进入源码 zip。
+
+人工判断：
+
+- 作业采用 CLI-only + GitHub Release 路线，因此 `is_deployed=false` 是正确值。
+- Docker build 未完成的原因仍按外部网络不可达记录，不影响 release 链接作为 CLI-only 交付入口。
+
+教训：
+
+- 最终提交前需要同时检查代码、release 包、仓库 release 页面和外层 submission 文件，不能只看单元测试。

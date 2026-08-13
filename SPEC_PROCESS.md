@@ -292,7 +292,7 @@ safecodeloop = "safecodeloop.cli:main"
 
 - 真实 LLM adapter 可能来不及完整实现，因此必须保证 mock LLM 路径完整。
 - OS keyring 可能实现成本较高，可能需要 `.env` fallback，但必须说明风险。
-- release 平台尚未最终确定。
+- release 平台已确定为 GitHub，当前 release 链接为 `https://github.com/yueyue0218/SafeCodeLoop/releases/tag/v0.1.0`。
 - worktree / PR 历史还需要在后续实现过程中认真维护。
 - 冷启动验证可能暴露当前 SPEC/PLAN 仍有歧义。
 
