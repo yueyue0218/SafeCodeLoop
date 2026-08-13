@@ -923,3 +923,33 @@ TDD / 审查记录：
 教训：
 
 - 最终提交前需要同时检查代码、release 包、仓库 release 页面和外层 submission 文件，不能只看单元测试。
+
+## 2026-08-13 19:20 · T5.6 安全强化 · OS 凭据库与隐藏输入
+
+触发的流程：
+
+- 安全复审发现原实现默认把 API key 写入用户目录下的明文 JSON，不满足项目的安全存储要求。
+- 创建独立分支 `feat/secure-credential-storage`。
+
+TDD 记录：
+
+- 红灯：新增 Keyring backend 测试后，测试收集因 `KeyringBackend` 尚不存在而失败。
+- 最小实现后，8 个凭据测试中 7 个通过；剩余失败明确指向开发环境尚未安装 `keyring` 依赖。
+- 安装项目声明的依赖后，凭据专项测试 `8 passed`，全量回归 `75 passed in 5.66s`。
+- 代码质量复审进一步移除了 `--value` 命令行入口和生产环境明文文件 fallback，避免密钥进入 shell history 或进程参数。
+
+完成内容：
+
+- 新增可注入的 `CredentialBackend` 协议、`KeyringBackend` 和测试专用 `FileCredentialBackend`。
+- `CredentialStore()` 默认使用 OS keyring；Windows 上由 keyring 使用 Windows Credential Manager。
+- CLI `key set` 使用隐藏输入；`status` 只显示是否已配置，不再显示 key 片段。
+- 更新 README、SPEC、依赖声明和测试。
+
+人工判断：
+
+- 对生产路径不采用“keyring 失败时自动写明文文件”的降级策略，因为安全失败应显式暴露，而不是静默降低保护等级。
+- 旧日志保留当时明文 JSON 实现的真实历史，本条记录说明后续修正，避免改写历史。
+
+教训：
+
+- 输出脱敏不能替代静态安全存储；安全 CLI 还必须考虑 shell history 和进程参数泄露。

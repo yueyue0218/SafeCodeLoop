@@ -681,6 +681,8 @@ python -m safecodeloop.cli key status
 - 红灯：首次运行 `python -m pytest tests/test_credentials.py` 时，`ModuleNotFoundError: No module named 'safecodeloop.credentials'`。
 - 绿灯：新增 `src/safecodeloop/credentials.py` 并扩展 `src/safecodeloop/cli.py` 后，`tests/test_credentials.py` 结果为 `5 passed`。
 - CLI 验证：`python -m safecodeloop.cli key status` 输出未配置提示，退出码为 0，未显示明文 key。
+
+后续安全强化：在 `feat/secure-credential-storage` 中将生产默认存储升级为 OS keyring，并将 CLI 改为隐藏输入；临时文件 backend 仅通过依赖注入用于测试。
 - 回归：运行 `python -m pytest`，全量结果为 `66 passed`。
 
 依赖：T3.2、T2.2。

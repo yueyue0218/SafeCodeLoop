@@ -292,8 +292,9 @@ SafeCodeLoop 是一个面向编程任务的迷你 Coding Agent Harness。它不�
 
 行为：
 
-- 优先使用 OS keyring。
-- 如果来不及实现 OS keyring，可提供 `.env` fallback，但必须在 README 中说明明文风险。
+- 默认使用 OS keyring；Windows 上使用 Windows Credential Manager。
+- CLI 通过隐藏输入录入 key，不接受命令行明文 key 参数。
+- 明文文件 backend 仅允许通过依赖注入用于隔离测试，不作为生产 CLI fallback。
 - 支持 `key set`、`key status`、`key clear`。
 
 边界条件：
@@ -510,9 +511,9 @@ Agent Loop -> Action Parser -> Tool Dispatcher -> Tools -> Observation -> Agent 
 
 - OS keyring，包括 Windows Credential Manager。
 
-fallback：
+测试方案：
 
-- `.env`，仅用于开发，并在 README 中说明明文风险。
+- 测试可以显式注入临时文件 backend；生产 CLI 不自动降级到明文存储。
 
 凭据命令：
 
@@ -523,6 +524,7 @@ fallback：
 要求：
 
 - 不回显明文。
+- 状态不显示可识别的 key 片段。
 - 不写日志。
 - 不提交 Git。
 

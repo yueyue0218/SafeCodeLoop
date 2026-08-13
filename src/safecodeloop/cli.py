@@ -1,5 +1,6 @@
 import argparse
 import json
+from getpass import getpass
 from pathlib import Path
 
 from safecodeloop import __version__
@@ -40,7 +41,6 @@ def build_parser():
 
     key_set = key_subparsers.add_parser("set", help="Store an API key.")
     key_set.add_argument("provider")
-    key_set.add_argument("--value", required=True)
 
     key_clear = key_subparsers.add_parser("clear", help="Clear a stored API key.")
     key_clear.add_argument("provider", nargs="?", default="openai")
@@ -144,14 +144,15 @@ def _handle_key_command(args, parser):
         if args.key_command == "status":
             status = store.status(args.provider)
             if status["configured"]:
-                print(f"{status['provider']}: configured ({status['masked_key']})")
+                print(f"{status['provider']}: configured")
             else:
                 print(f"{status['provider']}: not configured")
                 print(status["hint"])
             return 0
 
         if args.key_command == "set":
-            store.set_key(args.provider, args.value)
+            value = getpass("API key: ")
+            store.set_key(args.provider, value)
             print(f"{args.provider}: stored")
             return 0
 

@@ -143,11 +143,13 @@ Credential commands:
 
 ```powershell
 safecodeloop key status
-safecodeloop key set openai --value YOUR_KEY
+safecodeloop key set openai
 safecodeloop key clear openai
 ```
 
-Current implementation stores keys in a local JSON fallback under the user profile unless `SAFECODELOOP_CREDENTIALS_PATH` is set for tests. The CLI masks values in status output, but this fallback is not OS keyring storage. Do not commit `.safecodeloop/`, `.env`, logs, or real API keys.
+`key set` prompts for the secret without echoing it. SafeCodeLoop stores credentials through the operating-system keyring; on Windows this uses Windows Credential Manager. Status output reports only whether a credential exists and never displays the value or a recognizable fragment. Command-line key values are intentionally unsupported because process arguments and shell history can expose them.
+
+The plaintext file backend is available only through explicit dependency injection for isolated tests. It is not selected by the production CLI. Do not commit `.env`, logs, local memory, or real API keys.
 
 ## Docker
 
@@ -210,7 +212,7 @@ SafeCodeLoop is a teaching harness, not a production sandbox. It uses determinis
 ## Known Limitations
 
 - Real LLM adapter is not implemented; tests and demos use `MockLLM`.
-- Credential storage currently uses a local JSON fallback, not OS keyring.
+- A usable OS keyring backend must be available on the target system.
 - Docker build is pending until Docker Desktop is installed.
 - WebUI is intentionally not implemented; this follows the CLI-only plus release-link route allowed for Agent Harness submissions.
 - Release URL is created in T7.4 and should be filled after publishing a real GitHub/NJU Git release.
