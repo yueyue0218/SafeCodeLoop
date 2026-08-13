@@ -617,3 +617,74 @@ TDD 记录：
 教训：
 
 - Demo 不应只是口头说明或单测片段；它需要可执行文件和可验证日志。T6.2 已经形成第一条可交付机制演示链路。
+
+## 2026-08-13 14:40 · T6.3 · Demo 2 反馈闭环自我修正
+
+触发的流程：
+
+- 用户指出 T6.3 文件并不存在于当前仓库，要求确认是否 push。
+- 复查 `git log` 和 `rg --files` 后确认远程 `origin/main` 只到 T6.2，T6.3 没有正式提交。
+- 重新按 TDD 补回 T6.3。
+
+完成内容：
+
+- 新增 `demos/feedback_correction.json`。
+- 新增 `tests/test_demo_feedback.py`。
+- demo 序列为：
+  - 写入错误版本 `calc.py`。
+  - 写入 `test_calc.py`。
+  - 执行 `python -m pytest`，得到 `feedback_kind: test_failure`。
+  - 写入修正版 `calc.py`。
+  - 再执行 `python -m pytest`，得到 `feedback_kind: pass`。
+  - 返回 `finish`，最终状态 `success`。
+
+TDD 记录：
+
+- 红灯：测试在 demo 文件不存在时失败。
+- 绿灯：补齐 demo 后，`tests/test_demo_feedback.py` 结果为 `1 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `72 passed`。
+- 提交并推送：`0aaa9c4 Add feedback correction demo`。
+
+人工判断：
+
+- demo 明确设置临时配置 `maxSteps: 6`，因为完整红绿闭环需要 6 个 action step。
+- 修正版 `calc.py` 增加无害注释，避免 Python 在极短时间内复用旧 `.pyc` 导致第二次 pytest 误读旧代码。
+
+教训：
+
+- “测试通过”不等于“任务完成并进入仓库”。后续每个任务必须明确区分本地临时文件、工作树文件、本地 commit 和远程 push。
+
+## 2026-08-13 15:00 · T6.4 · Demo 3 主要贡献机制
+
+触发的流程：
+
+- 用户指出 T6.4 在计划中依赖 T6.3，要求重新检查是否“瞎造”。
+- 复查后确认第一版 T6.4 只覆盖“失败反馈 + 危险拦截”，没有体现 T6.3 的“修正后通过”，验收力度不足。
+
+完成内容：
+
+- 新增并修正 `demos/governance_feedback_depth.json`。
+- 新增并修正 `tests/test_demo_main_contribution.py`。
+- 综合 demo 序列为：
+  - 写入错误实现。
+  - 写入 pytest 测试。
+  - 执行 pytest，记录 `test_failure`。
+  - 写入修正实现。
+  - 再执行 pytest，记录 `pass`。
+  - 尝试执行 `rm -rf /`，Guardrail 拦截，最终状态 `blocked`。
+
+TDD / 审查记录：
+
+- 红灯：测试在 demo 文件不存在时失败。
+- 第一版绿灯后被复审推翻：虽然测试通过，但没有真正依赖 T6.3 的完整自我修正流程。
+- 修正后绿灯：`tests/test_demo_main_contribution.py` 结果为 `1 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `72 passed in 5.22s`。
+
+人工判断：
+
+- `blocked` 和 `needs_approval` 的语义是立即停止，因此危险动作必须放在反馈闭环完成之后，不能期待拦截后继续运行。
+- T6.4 的验收点现在包含三个关键证据：`feedback_kind: test_failure`、`feedback_kind: pass`、最终 `status: blocked`。
+
+教训：
+
+- “组合机制”不是把两个功能随便放在一起，而是要保留依赖关系：T6.4 必须先展示 T6.3 的修正能力，再展示 T6.2 的执行前治理。

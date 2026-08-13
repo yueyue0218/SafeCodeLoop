@@ -756,6 +756,8 @@ python -m pytest tests/test_demo_guardrail.py
 
 ### T6.3 Demo 2：反馈闭环自我修正
 
+状态：已完成。
+
 目标：满足 A.6 机制演示第二项。
 
 涉及文件：
@@ -773,11 +775,25 @@ python -m pytest tests/test_demo_guardrail.py
 python -m pytest tests/test_demo_feedback.py
 ```
 
+实际验证：
+
+- 红灯：`tests/test_demo_feedback.py` 在 demo 文件不存在时失败。
+- 绿灯：新增 `demos/feedback_correction.json` 后，`tests/test_demo_feedback.py` 结果为 `1 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `72 passed`。
+
+实现说明：
+
+- demo 先写入错误实现和测试，运行 `python -m pytest` 得到 `test_failure`。
+- mock LLM 随后写入修正版实现，再运行 `python -m pytest` 得到 `pass`。
+- 最终 `finish`，CLI 返回 `success`。
+
 依赖：T6.1。
 
 可并行：是。
 
 ### T6.4 Demo 3：主要贡献机制
+
+状态：已完成。
 
 目标：展示治理护栏 + 反馈闭环的组合深度。
 
@@ -795,6 +811,19 @@ python -m pytest tests/test_demo_feedback.py
 ```bash
 python -m pytest tests/test_demo_main_contribution.py
 ```
+
+实际验证：
+
+- 红灯：`tests/test_demo_main_contribution.py` 在 demo 文件不存在时失败。
+- 绿灯：新增并修正 `demos/governance_feedback_depth.json` 后，`tests/test_demo_main_contribution.py` 结果为 `1 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `72 passed`。
+
+实现说明：
+
+- T6.4 依赖 T6.3 的完整反馈闭环，不只停留在“失败反馈”。
+- demo 先完成：错误实现 -> pytest `test_failure` -> 修正实现 -> pytest `pass`。
+- 然后尝试执行 `rm -rf /`，Guardrail 在执行前拦截，最终状态为 `blocked`。
+- 因为 `blocked` / `needs_approval` 的安全语义是立即停机，所以综合 demo 把危险动作放在反馈闭环成功之后。
 
 依赖：T6.2、T6.3。
 
