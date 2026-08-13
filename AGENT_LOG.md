@@ -584,3 +584,36 @@ TDD 记录：
 教训：
 
 - 到 T6.1 为止，项目第一次具备了真正可运行的 CLI harness。前面的 loop、tools、guardrail、feedback、memory、config 都通过这个入口汇合，后续 demo 可以基于它稳定构建。
+
+## 2026-08-13 00:10 · T6.2 · Demo 1 危险动作拦截
+
+触发的流程：
+
+- 继续执行 `PLAN.md` 的 T6.2。
+- 遵循 TDD：先写 `tests/test_demo_guardrail.py`，再新增 `demos/dangerous_action.json`。
+
+完成内容：
+
+- 新增 `tests/test_demo_guardrail.py`。
+- 新增 `demos/dangerous_action.json`。
+- demo 中 mock LLM 输出：
+  - `run_command`
+  - `rm -rf /`
+- 测试通过 CLI `run` 执行 demo，并写出 run log。
+- 断言最终状态为 `blocked`。
+- 断言 observation 为 `guardrail_result`。
+
+TDD 记录：
+
+- 红灯：首次运行 `python -m pytest tests/test_demo_guardrail.py`，失败原因是 `demos/dangerous_action.json` 尚不存在，CLI run 无法生成 log。
+- 绿灯：补充 demo JSON 后，`tests/test_demo_guardrail.py` 结果为 `1 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `70 passed in 3.59s`。
+
+人工干预：
+
+- demo 使用真实 CLI run，而不是直接调用 `AgentLoop`，这样更接近助教检查方式。
+- run log 中保留 action 和 guardrail observation，方便后续 README/演示说明。
+
+教训：
+
+- Demo 不应只是口头说明或单测片段；它需要可执行文件和可验证日志。T6.2 已经形成第一条可交付机制演示链路。

