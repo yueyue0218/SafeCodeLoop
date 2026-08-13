@@ -58,7 +58,7 @@ python -m pytest
 Current local result:
 
 ```text
-100 passed
+106 passed
 ```
 
 ## CLI Usage
@@ -76,6 +76,8 @@ The run log records each step:
 - tool result or feedback
 - guardrail result
 - final status
+
+Validation feedback is classified as `pass`, `test_failure`, `syntax_error`, `type_error`, `lint_failure`, `timeout`, `environment_error`, or `unknown_failure`. Full evidence remains in the run log, while the model receives a bounded diagnostic excerpt with the original character count and SHA-256 reference.
 
 ## Demos
 

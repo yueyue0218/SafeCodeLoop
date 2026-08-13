@@ -256,6 +256,8 @@ SafeCodeLoop 是一个面向编程任务的迷你 Coding Agent Harness。它不�
   - `pass`
   - `test_failure`
   - `syntax_error`
+  - `type_error`
+  - `lint_failure`
   - `timeout`
   - `environment_error`
   - `unknown_failure`
@@ -265,6 +267,8 @@ SafeCodeLoop 是一个面向编程任务的迷你 Coding Agent Harness。它不�
 
 - 测试失败不能被当作完成。
 - timeout 有结构化结果。
+- 完整验证输出保留在运行日志；回灌模型的 details 默认限制为 1200 字符，并携带原始字符数、SHA-256 和日志位置。
+- 压缩时优先保留失败位置与诊断行，避免超大 stdout/stderr 全量进入模型上下文。
 
 ### 5.7 记忆与上下文
 
