@@ -1,20 +1,8 @@
 import json
 
-import pytest
-
 from safecodeloop.approval import ApprovalStore
 from safecodeloop.cli import main
 from safecodeloop.llm import LLMResponse
-
-
-@pytest.fixture(autouse=True)
-def isolated_approval_store(tmp_path, monkeypatch):
-    store = ApprovalStore(
-        tmp_path / "isolated-approvals.json",
-        b"test-only-approval-signing-key",
-    )
-    monkeypatch.setattr("safecodeloop.cli._approval_store", lambda workspace: store)
-    return store
 
 
 def test_run_cli_with_mock_script_succeeds_and_writes_file(tmp_path, capsys):
