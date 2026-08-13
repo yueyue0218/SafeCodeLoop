@@ -856,3 +856,35 @@ TDD / 审查记录：
 教训：
 
 - 过程日志的目标是可审计，而不是流水账。最终版应该让助教能快速看到每个阶段的工程证据。
+
+## 2026-08-13 17:10 · T7.2 补充验证 · Docker CLI 与网络边界
+
+触发的流程：
+
+- 用户安装 Docker Desktop 后要求继续验证 T7.2。
+- Codex 当前进程 PATH 尚未刷新，先定位 Docker Desktop 的实际 CLI 路径。
+
+完成内容：
+
+- 定位到 Docker CLI：`C:\Users\HP\AppData\Local\Programs\DockerDesktop\resources\bin\docker.exe`。
+- 临时把 Docker bin 目录加入当前命令 PATH，解决 `docker-credential-desktop` 查找问题。
+- 执行 `docker --version`。
+- 执行 `docker build -t safecodeloop .`。
+- 执行 Docker Hub 连通性检查。
+
+验证记录：
+
+- `docker --version`：Docker version 29.7.2, build a7dcaa6。
+- `docker build -t safecodeloop .`：已进入拉取 `python:3.11-slim` 基础镜像阶段。
+- build 失败原因：无法连接 Docker Hub 鉴权/registry 服务。
+- `Test-NetConnection auth.docker.io -Port 443`：`TcpTestSucceeded: False`。
+- `Test-NetConnection registry-1.docker.io -Port 443`：`TcpTestSucceeded: False`。
+
+人工判断：
+
+- 当前失败不是 Dockerfile 语法错误，也不是项目安装错误，而是基础镜像拉取阶段的外部网络不可达。
+- README 和 PLAN 已更新为“Docker CLI 已验证，build 因 Docker Hub 网络不可达待重试”。
+
+教训：
+
+- Docker 分发验证要拆开记录：CLI 是否可用、镜像能否拉取、Dockerfile 能否 build、容器能否 run。这样网络问题不会被误判为项目打包问题。

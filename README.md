@@ -163,7 +163,13 @@ docker build -t safecodeloop .
 docker run --rm safecodeloop --help
 ```
 
-Current local limitation: Docker Desktop is not installed on the development machine yet, so `docker build` has not been locally verified.
+Current local verification:
+
+- Docker CLI is available: Docker version 29.7.2.
+- `docker build -t safecodeloop .` reached the base-image pull step.
+- Build could not complete because the machine could not connect to Docker Hub `auth.docker.io` / `registry-1.docker.io` over port 443.
+
+Retry the build when Docker Hub network access is available.
 
 ## Release Package
 

@@ -865,7 +865,7 @@ python -m pytest
 
 ### T7.2 添加 Dockerfile
 
-状态：已完成文件；本机未安装 Docker，容器 build 待 Docker 环境验证。
+状态：已完成文件；Docker CLI 已验证，容器 build 因 Docker Hub 网络不可达待重试。
 
 目标：提供可分发容器构建方式。
 
@@ -886,7 +886,9 @@ docker run --rm safecodeloop --help
 - 新增 `Dockerfile`，基于 `python:3.11-slim` 安装当前包。
 - 新增 `.dockerignore`，排除 `.git`、缓存、虚拟环境、`.env`、本地 `.safecodeloop` 和 release 产物。
 - 本地回归：`python -m pytest` 结果为 `72 passed`。
-- 本机 `docker --version` 不可用，未声称容器 build 已通过。
+- Docker CLI 可用：Docker version 29.7.2。
+- `docker build -t safecodeloop .` 已执行到拉取基础镜像阶段。
+- build 未完成原因：当前网络无法连接 Docker Hub `auth.docker.io` / `registry-1.docker.io:443`，未声称容器 build 已通过。
 
 依赖：T2.2。
 
