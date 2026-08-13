@@ -1,6 +1,7 @@
 import argparse
 import json
 import secrets
+from collections.abc import Callable
 from getpass import getpass
 from pathlib import Path
 
@@ -14,6 +15,20 @@ from safecodeloop.llm import LLMError, MockLLM, OpenAICompatibleLLM
 from safecodeloop.loop import AgentLoop, RunResult
 from safecodeloop.memory import MemoryStore
 from safecodeloop.tools import create_agent_tool_registry
+
+
+class _LazyApprovalStore:
+    def __init__(self, factory: Callable[[], ApprovalStore]):
+        self._factory = factory
+        self._store: ApprovalStore | None = None
+
+    def _get_store(self) -> ApprovalStore:
+        if self._store is None:
+            self._store = self._factory()
+        return self._store
+
+    def __getattr__(self, name):
+        return getattr(self._get_store(), name)
 
 
 def build_parser():
@@ -78,7 +93,7 @@ def _handle_run_command(args) -> int:
         config = load_config(args.config)
         workspace = Path(args.workspace or config.workspace_root)
         workspace.mkdir(parents=True, exist_ok=True)
-        approval_store = _approval_store(workspace)
+        approval_store = _LazyApprovalStore(lambda: _approval_store(workspace))
 
         llm = _create_llm(config, args.mock_script)
         loop = AgentLoop(

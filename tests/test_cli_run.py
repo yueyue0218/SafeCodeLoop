@@ -27,6 +27,42 @@ def test_run_cli_with_mock_script_succeeds_and_writes_file(tmp_path, capsys):
     assert (workspace / "result.txt").read_text(encoding="utf-8") == "done"
 
 
+def test_safe_mock_run_does_not_initialize_approval_keyring(tmp_path, monkeypatch):
+    workspace = tmp_path / "workspace"
+    script = tmp_path / "script.json"
+    script.write_text(json.dumps([{"type": "finish", "message": "offline"}]), encoding="utf-8")
+
+    def unavailable_store(workspace):
+        raise AssertionError("safe mock run must not initialize approval storage")
+
+    monkeypatch.setattr("safecodeloop.cli._approval_store", unavailable_store)
+
+    assert main(["run", "--mock-script", str(script), "--workspace", str(workspace), "offline"]) == 0
+
+
+def test_risky_mock_run_still_initializes_approval_store(tmp_path, monkeypatch, capsys):
+    workspace = tmp_path / "workspace"
+    script = tmp_path / "script.json"
+    script.write_text(
+        json.dumps([{"type": "run_command", "command": "python -m pip install requests"}]),
+        encoding="utf-8",
+    )
+    calls = []
+    real_store = ApprovalStore(tmp_path / "approvals.json", b"test-only-approval-signing-key")
+
+    def tracked_store(workspace):
+        calls.append(workspace)
+        return real_store
+
+    monkeypatch.setattr("safecodeloop.cli._approval_store", tracked_store)
+
+    exit_code = main(["run", "--mock-script", str(script), "--workspace", str(workspace), "install"])
+
+    assert exit_code == 1
+    assert calls == [workspace]
+    assert "approval_id:" in capsys.readouterr().out
+
+
 def test_run_cli_writes_log_file(tmp_path):
     workspace = tmp_path / "workspace"
     script = tmp_path / "script.json"

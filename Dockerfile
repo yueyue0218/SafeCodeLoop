@@ -6,7 +6,7 @@ COPY pyproject.toml ./
 COPY src ./src
 
 RUN python -m pip install --no-cache-dir --upgrade pip \
-    && python -m pip install --no-cache-dir .
+    && python -m pip install --no-cache-dir . pytest
 
 COPY demos ./demos
 COPY SPEC.md PLAN.md SPEC_PROCESS.md AGENT_LOG.md ./

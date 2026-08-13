@@ -58,7 +58,7 @@ python -m pytest
 Current local result:
 
 ```text
-114 passed
+116 passed
 ```
 
 ## CLI Usage
@@ -237,11 +237,12 @@ docker run --rm safecodeloop --help
 
 Current local verification:
 
-- Docker CLI is available: Docker version 29.7.2.
-- `docker build -t safecodeloop .` reached the base-image pull step.
-- Build could not complete because the machine could not connect to Docker Hub `auth.docker.io` / `registry-1.docker.io` over port 443.
+- Docker Desktop Engine 29.7.2 built `safecodeloop:0.1.0` successfully.
+- Container `--help` and `--version` smoke tests pass.
+- The container reproduces the deterministic failure-correction-pass demo without an API key.
+- The image excludes Git metadata, release output, local approval state, and the private execution plan.
 
-Retry the build when Docker Hub network access is available.
+The release image includes `pytest` so the feedback demo runs without extra installation. Safe mock runs initialize no credential backend; OS keyring access remains lazy and is required only when an approval record is created or resumed.
 
 ## Release Package
 
