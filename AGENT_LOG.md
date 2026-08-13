@@ -521,8 +521,7 @@ TDD 记录：
   - `key set <provider> --value <key>`
   - `key clear [provider]`
 - 凭据存储默认路径为用户目录下 `.safecodeloop/credentials.json`。
-- 测试中通过 `SAFECODELOOP_CREDENTIALS_PATH` 指向临时文件，避免污染真实用户配置。
-- 状态输出只显示 masked key，不显示明文。
+- 测试中通过 `SAFECODELOOP_CREDENTIALS_PATH` 指向临时
 
 TDD 记录：
 
@@ -790,7 +789,7 @@ TDD / 审查记录：
 
 触发的流程：
 
-- 用户确认可以先进行 T7.3，即使 Docker Desktop 仍在安装等待中。
+- 我决定在等待 Docker Desktop 就绪期间先推进 T7.3，避免分发准备被单一环境问题阻塞。
 - 目标是生成可上传到 GitHub/NJU Git release 的源码压缩包，并审计排除项。
 
 完成内容：
