@@ -749,3 +749,38 @@ TDD / 审查记录：
 教训：
 
 - 分发配置必须区分“文件已提供”和“容器已实际构建验证”。没有 Docker 环境时，只能如实记录待验证项，不能伪造通过结果。
+
+## 2026-08-13 16:20 · T8.1 · README 初版
+
+触发的流程：
+
+- 用户确认按“先 README，再重新生成 release 包”的顺序继续。
+- README 作为助教从零运行项目的入口，需要覆盖安装、测试、demo、Docker、凭据和安全边界。
+
+完成内容：
+
+- 新增 `README.md`。
+- 写明 SafeCodeLoop 是 CLI-only coding agent harness。
+- 写明主要贡献：Guardrails before execution + test feedback loop after execution。
+- 补充安装命令、测试命令、CLI help 命令。
+- 补充三个可执行 demo：
+  - dangerous action blocked
+  - feedback correction
+  - main contribution
+- 补充配置示例、凭据管理说明、Docker 使用方式、release 打包方式、目录结构、安全边界和已知限制。
+
+验证记录：
+
+- `python -m pytest`：`72 passed`。
+- `python -m safecodeloop --help`：退出码 0，输出 CLI help。
+- `safecodeloop --help`：退出码 0，输出 CLI help。
+
+人工判断：
+
+- README 没有填写假的 release URL，明确说明 T7.4 创建 release 后再补。
+- Docker 部分如实说明当前机器尚未安装 Docker Desktop，因此 build 未本地验证。
+- 凭据部分明确当前是本地 JSON fallback，不是 OS keyring，避免把安全能力说过头。
+
+教训：
+
+- README 是评分者复现项目的路径，不是宣传页。必须把真实限制写清楚，尤其是 Docker、release URL 和凭据存储。

@@ -943,6 +943,8 @@ docker run --rm safecodeloop --help
 
 ### T8.1 编写 README
 
+状态：已完成初版；真实 Release 链接待 T7.4 后补充。
+
 目标：让助教能从零运行项目。
 
 涉及文件：
@@ -966,6 +968,14 @@ docker run --rm safecodeloop --help
 验证步骤：
 
 - 按 README 在干净目录跑一遍。
+
+实际验证：
+
+- 新增 `README.md`。
+- 覆盖项目简介、安装、CLI 使用、三个 mock demo、测试命令、Docker build/run、key 配置风险、安全边界、目录结构、release 包和已知限制。
+- 本地验证 `python -m pytest`：`72 passed`。
+- 本地验证 `python -m safecodeloop --help` 和 `safecodeloop --help` 均可用。
+- README 如实记录 Docker Desktop 尚未安装，因此 Docker build 未本地验证。
 
 依赖：T6.1、T7.2。
 
