@@ -691,6 +691,8 @@ python -m safecodeloop.cli key status
 
 ### T6.1 实现 `run` CLI
 
+状态：已完成。
+
 目标：通过命令行运行 harness。
 
 涉及文件：
@@ -709,6 +711,13 @@ python -m safecodeloop.cli key status
 ```bash
 python -m pytest tests/test_cli_run.py
 ```
+
+实际验证：
+
+- 红灯：首次运行 `python -m pytest tests/test_cli_run.py` 时，3 个测试失败，原因是 `run` 子命令不支持 `--mock-script`、`--workspace`、`--log` 和 task 参数。
+- 绿灯：扩展 `src/safecodeloop/cli.py` 和 `src/safecodeloop/tools.py` 后，`tests/test_cli_run.py` 结果为 `3 passed`。
+- CLI 冒烟：`python -m safecodeloop.cli run --mock-script <script> --workspace <tmp> smoke` 输出 `status: success`，退出码为 0。
+- 回归：运行 `python -m pytest`，全量结果为 `69 passed`。
 
 依赖：T4.5、T5.2、T5.5。
 

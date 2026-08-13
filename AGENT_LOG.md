@@ -540,3 +540,47 @@ TDD 记录：
 教训：
 
 - 凭据功能即使是 fallback 实现，也要先把“状态不泄露明文”和“测试不污染真实配置”做稳。后续 README 必须明确说明 JSON fallback 的明文风险。
+
+## 2026-08-12 00:10 · T6.1 · run CLI
+
+触发的流程：
+
+- 进入 `PLAN.md` 的 Phase 6。
+- 遵循 TDD：先写 `tests/test_cli_run.py`，再扩展 `src/safecodeloop/cli.py` 和 `src/safecodeloop/tools.py`。
+
+完成内容：
+
+- 新增 `tests/test_cli_run.py`。
+- 扩展 `run` 子命令，支持：
+  - `--mock-script`
+  - `--workspace`
+  - `--config`
+  - `--log`
+  - task 参数
+- CLI run 会组装：
+  - `MockLLM`
+  - `AgentLoop`
+  - `GuardrailEngine`
+  - `Validator`
+  - `MemoryStore`
+  - 组合工具注册表
+- 新增 `create_agent_tool_registry()`，同时注册文件工具和命令工具。
+- 支持 JSON run log 输出。
+- 被 guardrail 拦截时返回非 0。
+
+TDD 记录：
+
+- 红灯：首次运行 `python -m pytest tests/test_cli_run.py`，3 个测试失败，原因是 `run` 子命令不支持 `--mock-script`、`--workspace`、`--log` 和 task 参数。
+- 绿灯：补充 run CLI 后，`tests/test_cli_run.py` 结果为 `3 passed`。
+- CLI 冒烟：`python -m safecodeloop.cli run --mock-script <script> --workspace <tmp> smoke` 输出 `status: success`，退出码为 0。
+- 回归：运行 `python -m pytest`，全量结果为 `69 passed in 3.68s`。
+
+人工干预：
+
+- mock script 支持两种形式：JSON list，或包含 `responses` 字段的 JSON object。
+- list 内元素既可以是 action object，也可以是原始 JSON 字符串。
+- run log 中记录 status、final message、每一步 LLM 响应、action 和 observation。
+
+教训：
+
+- 到 T6.1 为止，项目第一次具备了真正可运行的 CLI harness。前面的 loop、tools、guardrail、feedback、memory、config 都通过这个入口汇合，后续 demo 可以基于它稳定构建。

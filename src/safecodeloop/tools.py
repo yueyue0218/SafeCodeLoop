@@ -35,6 +35,9 @@ class ToolRegistry:
             raise ValueError("tool name must not be empty")
         self._handlers[name] = handler
 
+    def extend(self, other: "ToolRegistry") -> None:
+        self._handlers.update(other._handlers)
+
     def dispatch(self, action: Action) -> ToolResult:
         handler = self._handlers.get(action.type)
         if handler is None:
@@ -151,4 +154,11 @@ def create_command_tool_registry(workspace_root: str | Path, timeout_seconds: fl
         return ToolResult(ok=True, data=data)
 
     registry.register("run_command", run_command)
+    return registry
+
+
+def create_agent_tool_registry(workspace_root: str | Path, timeout_seconds: float = 10.0) -> ToolRegistry:
+    registry = ToolRegistry()
+    registry.extend(create_file_tool_registry(workspace_root))
+    registry.extend(create_command_tool_registry(workspace_root, timeout_seconds=timeout_seconds))
     return registry

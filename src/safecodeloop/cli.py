@@ -1,7 +1,16 @@
 import argparse
+import json
+from pathlib import Path
 
 from safecodeloop import __version__
+from safecodeloop.config import ConfigError, load_config
 from safecodeloop.credentials import CredentialError, CredentialStore
+from safecodeloop.feedback import Validator
+from safecodeloop.guardrails import GuardrailEngine
+from safecodeloop.llm import MockLLM
+from safecodeloop.loop import AgentLoop, RunResult
+from safecodeloop.memory import MemoryStore
+from safecodeloop.tools import create_agent_tool_registry
 
 
 def build_parser():
@@ -16,7 +25,12 @@ def build_parser():
     )
 
     subparsers = parser.add_subparsers(dest="command")
-    subparsers.add_parser("run", help="Run a task through the harness.")
+    run_parser = subparsers.add_parser("run", help="Run a task through the harness.")
+    run_parser.add_argument("task", nargs="+")
+    run_parser.add_argument("--mock-script", required=True)
+    run_parser.add_argument("--workspace")
+    run_parser.add_argument("--config")
+    run_parser.add_argument("--log")
 
     key_parser = subparsers.add_parser("key", help="Manage LLM API credentials.")
     key_subparsers = key_parser.add_subparsers(dest="key_command")
@@ -41,8 +55,84 @@ def main(argv=None):
 
     if args.command == "key":
         return _handle_key_command(args, parser)
+    if args.command == "run":
+        return _handle_run_command(args)
 
     return 0
+
+
+def _handle_run_command(args) -> int:
+    try:
+        config = load_config(args.config)
+        workspace = Path(args.workspace or config.workspace_root)
+        workspace.mkdir(parents=True, exist_ok=True)
+
+        llm = MockLLM(_load_mock_script(Path(args.mock_script)))
+        loop = AgentLoop(
+            llm=llm,
+            max_steps=config.max_steps,
+            tool_registry=create_agent_tool_registry(workspace),
+            guardrail_engine=GuardrailEngine(
+                workspace,
+                blocked_command_patterns=config.blocked_command_patterns,
+            ),
+            validator=Validator(),
+            memory_store=MemoryStore(workspace / config.memory_path),
+        )
+        result = loop.run(" ".join(args.task))
+    except (ConfigError, OSError, ValueError) as exc:
+        print(f"run error: {exc}")
+        return 2
+
+    print(f"status: {result.status}")
+    if result.final_message:
+        print(result.final_message)
+
+    if args.log:
+        _write_run_log(Path(args.log), result)
+
+    return 0 if result.status == "success" else 1
+
+
+def _load_mock_script(path: Path) -> list[str]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload, dict) and "responses" in payload:
+        payload = payload["responses"]
+    if not isinstance(payload, list):
+        raise ValueError("mock script must be a JSON list or an object with responses")
+
+    responses = []
+    for item in payload:
+        if isinstance(item, str):
+            responses.append(item)
+        elif isinstance(item, dict):
+            responses.append(json.dumps(item))
+        else:
+            raise ValueError("mock script responses must be strings or objects")
+    return responses
+
+
+def _write_run_log(path: Path, result: RunResult) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(_run_result_to_dict(result), indent=2), encoding="utf-8")
+
+
+def _run_result_to_dict(result: RunResult) -> dict:
+    return {
+        "status": result.status,
+        "final_message": result.final_message,
+        "steps": [
+            {
+                "index": step.index,
+                "llm_response": step.llm_response,
+                "action": None
+                if step.action is None
+                else {"type": step.action.type, "arguments": step.action.arguments},
+                "observation": step.observation,
+            }
+            for step in result.steps
+        ],
+    }
 
 
 def _handle_key_command(args, parser):
