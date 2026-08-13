@@ -92,6 +92,8 @@ def _handle_run_command(args) -> int:
             validator=Validator(),
             memory_store=MemoryStore(workspace / config.memory_path),
             approval_store=approval_store,
+            max_validations=config.max_validations,
+            max_repeated_failures=config.max_repeated_failures,
         )
         task = " ".join(args.task)
         result = loop.resume(args.resume, task) if args.resume else loop.run(task)

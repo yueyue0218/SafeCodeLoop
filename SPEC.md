@@ -154,7 +154,7 @@ SafeCodeLoop 是一个面向编程任务的迷你 Coding Agent Harness。它不�
 
 输出：
 
-- 运行状态：`success`、`failed`、`blocked`、`needs_approval`、`max_steps`。
+- 运行状态：`success`、`failed`、`blocked`、`needs_approval`、`max_steps`、`validation_budget_exhausted`、`repeated_validation_failure`。
 - 每一步日志。
 - 工具输出。
 - 护栏事件。
@@ -267,6 +267,10 @@ SafeCodeLoop 是一个面向编程任务的迷你 Coding Agent Harness。它不�
 
 - 测试失败不能被当作完成。
 - timeout 有结构化结果。
+- 成功写入代码或工程配置后，必须有更新后的客观验证通过，`finish` 才能返回成功。
+- 验证失败后直接请求 `finish` 会生成 `completion_rejected` observation 并继续循环。
+- 总验证次数受 `maxValidations` 限制；相同类别与摘要连续失败达到 `maxRepeatedFailures` 时打开熔断器。
+- 审批恢复路径使用相同的完成门槛、预算与重复失败规则，不能绕过验证状态机。
 - 完整验证输出保留在运行日志；回灌模型的 details 默认限制为 1200 字符，并携带原始字符数、SHA-256 和日志位置。
 - 压缩时优先保留失败位置与诊断行，避免超大 stdout/stderr 全量进入模型上下文。
 
@@ -289,6 +293,8 @@ SafeCodeLoop 是一个面向编程任务的迷你 Coding Agent Harness。它不�
 
 - `workspaceRoot`
 - `maxSteps`
+- `maxValidations`
+- `maxRepeatedFailures`
 - `allowedTools`
 - `blockedCommandPatterns`
 - `approvalRequiredPatterns`

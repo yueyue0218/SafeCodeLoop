@@ -513,6 +513,7 @@ python -m pytest tests/test_feedback.py
 - 红灯：首次运行 `python -m pytest tests/test_feedback.py` 时，`ModuleNotFoundError: No module named 'safecodeloop.feedback'`。
 - 绿灯：新增 `src/safecodeloop/feedback.py` 后，`tests/test_feedback.py` 结果为 `5 passed`。
 - 后续增强：反馈分类扩展为八类；完整 evidence 保存在运行日志，模型上下文只接收有界诊断摘要及 SHA-256 引用。
+- 后续增强：增加验证预算、重复失败熔断和完成门槛；代码写入或验证失败后，必须取得新的客观验证通过才能成功结束，审批恢复路径遵守相同规则。
 - 回归：运行 `python -m pytest`，全量结果为 `46 passed`。
 
 依赖：T4.3。
