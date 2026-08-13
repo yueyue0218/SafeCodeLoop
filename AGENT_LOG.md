@@ -953,3 +953,35 @@ TDD 记录：
 教训：
 
 - 输出脱敏不能替代静态安全存储；安全 CLI 还必须考虑 shell history 和进程参数泄露。
+
+## 2026-08-13 20:00 · T7.1 托管平台适配 · GitHub Actions
+
+触发的流程：
+
+- GitHub PR #1 成功合并，但页面显示 `Checks 0`；现有 `.gitlab-ci.yml` 不会在 GitHub 自动执行。
+- 创建独立分支 `ci/github-actions`，保留 GitLab CI 的同时增加 GitHub 原生检查。
+
+完成内容：
+
+- 新增 `.github/workflows/ci.yml`。
+- pull request 和 `main` push 均触发名为 `unit-test` 的 job。
+- job 固定使用 Python 3.11，运行全量 pytest、构建 wheel，并在隔离虚拟环境安装 wheel 后执行 `safecodeloop --help`。
+- workflow 权限限制为只读仓库内容。
+- README 增加 CI badge、GitHub workflow 路径，并同步当前测试数量。
+
+验证策略：
+
+- 本地先验证 pytest、wheel 构建、隔离安装和 CLI smoke test。
+- 远程成功状态必须由本分支 PR 的 GitHub Actions 实际运行证明，本地不预先宣称远程通过。
+
+本地验证结果：
+
+- `python -m pytest`：`76 passed in 5.83s`。
+- `python -m build`：成功生成 `safecodeloop-0.1.0.tar.gz` 和 `safecodeloop-0.1.0-py3-none-any.whl`。
+- 在系统临时目录创建全新虚拟环境并安装 wheel：成功。
+- 从隔离环境执行 `safecodeloop --help`：退出码 0，入口点可用。
+
+人工判断：
+
+- wheel 安装 smoke test 比 editable install 更接近最终用户的获取路径，可以发现打包时遗漏模块或入口点的问题。
+- Docker 网络仍可能受外部 registry 影响，因此不把 Docker build 放入当前必需 job，避免与本次 Python 包验证混淆。

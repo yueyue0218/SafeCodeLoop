@@ -1,5 +1,7 @@
 # SafeCodeLoop
 
+[![CI](https://github.com/yueyue0218/SafeCodeLoop/actions/workflows/ci.yml/badge.svg)](https://github.com/yueyue0218/SafeCodeLoop/actions/workflows/ci.yml)
+
 SafeCodeLoop is a minimal coding agent harness for the AI4SE final project. It demonstrates how a coding agent can be wrapped with deterministic engineering mechanisms instead of relying only on prompts.
 
 The main contribution is:
@@ -54,7 +56,7 @@ python -m pytest
 Current local result:
 
 ```text
-72 passed
+76 passed
 ```
 
 ## CLI Usage
@@ -202,6 +204,7 @@ SPEC_PROCESS.md         spec/process record
 AGENT_LOG.md            agent collaboration log
 RELEASE_CHECKLIST.md    release checklist
 .gitlab-ci.yml          CI unit-test job
+.github/workflows/ci.yml GitHub test, build, and wheel smoke test
 Dockerfile              container distribution file
 ```
 
