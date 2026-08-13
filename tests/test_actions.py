@@ -17,6 +17,13 @@ def test_parse_valid_run_command_action():
     assert action.arguments == {"command": "python -m pytest"}
 
 
+def test_parse_valid_run_validation_action():
+    action = parse_action('{"type": "run_validation", "command": "python -m pytest"}')
+
+    assert action.type == "run_validation"
+    assert action.arguments == {"command": "python -m pytest"}
+
+
 def test_unknown_action_type_is_rejected():
     with pytest.raises(ActionParseError, match="unknown action type"):
         parse_action('{"type": "delete_everything"}')

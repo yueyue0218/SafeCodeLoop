@@ -154,6 +154,7 @@ def create_command_tool_registry(workspace_root: str | Path, timeout_seconds: fl
         return ToolResult(ok=True, data=data)
 
     registry.register("run_command", run_command)
+    registry.register("run_validation", run_command)
     return registry
 
 

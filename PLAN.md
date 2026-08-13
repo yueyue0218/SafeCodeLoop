@@ -223,6 +223,7 @@ python -m safecodeloop --help
 实现要点：
 
 - 支持 `list_files`、`read_file`、`write_file`、`run_command`、`remember`、`finish`、`request_approval`。
+- 后续将验证命令拆分为显式 `run_validation`，避免把普通命令成功误记为测试通过；该动作复用受控命令工具并继续经过相同 guardrail。
 
 验证命令：
 

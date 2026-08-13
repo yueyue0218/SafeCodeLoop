@@ -31,13 +31,13 @@ def test_feedback_loop_lets_llm_correct_after_test_failure(tmp_path):
         return ToolResult(ok=True, data={"exit_code": 0, "stdout": "1 passed", "stderr": ""})
 
     registry.register("write_file", write_file)
-    registry.register("run_command", run_command)
+    registry.register("run_validation", run_command)
     llm = MockLLM(
         [
             '{"type": "write_file", "path": "calc.py", "content": "def add(a, b):\\n    return a - b\\n"}',
-            '{"type": "run_command", "command": "python -m pytest"}',
+            '{"type": "run_validation", "command": "python -m pytest"}',
             '{"type": "write_file", "path": "calc.py", "content": "def add(a, b):\\n    return a + b\\n"}',
-            '{"type": "run_command", "command": "python -m pytest"}',
+            '{"type": "run_validation", "command": "python -m pytest"}',
             '{"type": "finish", "message": "fixed"}',
         ]
     )
@@ -58,3 +58,32 @@ def test_feedback_loop_lets_llm_correct_after_test_failure(tmp_path):
     assert result.steps[1].observation["feedback_kind"] == "test_failure"
     assert "feedback_kind': 'test_failure" in llm.calls[2][-1]["content"]
     assert (tmp_path / "calc.py").read_text(encoding="utf-8") == "def add(a, b):\n    return a + b\n"
+
+
+def test_regular_command_returns_tool_observation_not_feedback(tmp_path):
+    registry = ToolRegistry()
+    registry.register(
+        "run_command",
+        lambda arguments: ToolResult(
+            ok=True,
+            data={"exit_code": 0, "stdout": "clean", "stderr": ""},
+        ),
+    )
+    loop = AgentLoop(
+        llm=MockLLM(
+            [
+                '{"type": "run_command", "command": "git status --short"}',
+                '{"type": "finish", "message": "inspected"}',
+            ]
+        ),
+        max_steps=2,
+        tool_registry=registry,
+        guardrail_engine=GuardrailEngine(tmp_path),
+        validator=Validator(),
+    )
+
+    result = loop.run("inspect repository status")
+
+    assert result.status == "success"
+    assert result.steps[0].observation["kind"] == "tool_result"
+    assert result.steps[0].observation["tool"] == "run_command"

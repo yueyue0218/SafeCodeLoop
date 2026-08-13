@@ -11,6 +11,15 @@ def test_guardrail_blocks_rm_rf_root(tmp_path):
     assert "dangerous command" in decision.reason
 
 
+def test_validation_action_cannot_bypass_command_guardrail(tmp_path):
+    engine = GuardrailEngine(tmp_path)
+
+    decision = engine.check(Action(type="run_validation", arguments={"command": "rm -rf /"}))
+
+    assert decision.status == "blocked"
+    assert "dangerous command" in decision.reason
+
+
 def test_guardrail_blocks_database_delete_command(tmp_path):
     engine = GuardrailEngine(tmp_path)
 
