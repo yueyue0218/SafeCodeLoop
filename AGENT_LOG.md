@@ -720,3 +720,32 @@ TDD / 审查记录：
 教训：
 
 - CI 文件是作业工程化证据的一部分，不是功能代码。它要足够简单，让助教能直接看到测试入口。
+
+## 2026-08-13 16:00 · T7.2 · Docker 分发运行环境
+
+触发的流程：
+
+- 用户要求继续 T7.2，并强调不要用假数据、不要糊弄。
+- 先检查仓库没有已有 Dockerfile / `.dockerignore`，再新增分发配置。
+
+完成内容：
+
+- 新增 `Dockerfile`。
+- 新增 `.dockerignore`。
+- Dockerfile 使用 `python:3.11-slim`，安装当前 Python 包，默认入口为 `safecodeloop --help`。
+- `.dockerignore` 排除 `.git`、缓存、虚拟环境、构建产物、`.env`、本地 `.safecodeloop` 和 release 目录。
+
+验证记录：
+
+- 本地运行 `python -m pytest`，结果为 `72 passed in 5.15s`。
+- 本机执行 `docker --version` 失败：当前电脑未安装 Docker 或 Docker 不在 PATH。
+- 因此没有声称 `docker build` 或 `docker run` 已通过。
+
+人工判断：
+
+- 第一版 Dockerfile 曾尝试 `COPY README.md* ./`，但当前仓库尚未进入 T8.1 README 阶段，可能导致 build 依赖不存在文件。
+- 已移除该 COPY，避免 T7.2 被后续文档任务阻塞。
+
+教训：
+
+- 分发配置必须区分“文件已提供”和“容器已实际构建验证”。没有 Docker 环境时，只能如实记录待验证项，不能伪造通过结果。

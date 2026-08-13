@@ -865,6 +865,8 @@ python -m pytest
 
 ### T7.2 添加 Dockerfile
 
+状态：已完成文件；本机未安装 Docker，容器 build 待 Docker 环境验证。
+
 目标：提供可分发容器构建方式。
 
 涉及文件：
@@ -878,6 +880,13 @@ python -m pytest
 docker build -t safecodeloop .
 docker run --rm safecodeloop --help
 ```
+
+实际验证：
+
+- 新增 `Dockerfile`，基于 `python:3.11-slim` 安装当前包。
+- 新增 `.dockerignore`，排除 `.git`、缓存、虚拟环境、`.env`、本地 `.safecodeloop` 和 release 产物。
+- 本地回归：`python -m pytest` 结果为 `72 passed`。
+- 本机 `docker --version` 不可用，未声称容器 build 已通过。
 
 依赖：T2.2。
 
