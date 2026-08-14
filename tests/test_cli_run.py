@@ -63,6 +63,40 @@ def test_risky_mock_run_still_initializes_approval_store(tmp_path, monkeypatch, 
     assert "approval_id:" in capsys.readouterr().out
 
 
+def test_run_cli_applies_configured_approval_pattern(tmp_path, monkeypatch, capsys):
+    workspace = tmp_path / "workspace"
+    script = tmp_path / "script.json"
+    config = tmp_path / "config.json"
+    script.write_text(
+        json.dumps([{"type": "run_command", "command": "git status --short"}]),
+        encoding="utf-8",
+    )
+    config.write_text(
+        json.dumps({"approvalRequiredPatterns": [r"git status"]}),
+        encoding="utf-8",
+    )
+    store = ApprovalStore(tmp_path / "approvals.json", b"test-only-approval-signing-key")
+    monkeypatch.setattr("safecodeloop.cli._approval_store", lambda workspace: store)
+
+    exit_code = main(
+        [
+            "run",
+            "--mock-script",
+            str(script),
+            "--workspace",
+            str(workspace),
+            "--config",
+            str(config),
+            "inspect status",
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 1
+    assert "status: needs_approval" in output
+    assert "approval_id:" in output
+
+
 def test_run_cli_writes_log_file(tmp_path):
     workspace = tmp_path / "workspace"
     script = tmp_path / "script.json"

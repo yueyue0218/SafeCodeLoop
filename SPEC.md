@@ -350,7 +350,7 @@ WebUI：
 
 | NFR ID | 可测量要求 | 验收方法 |
 |---|---|---|
-| `NFR-PERF-01` | 132 项离线测试不访问真实 LLM 或网络；在本项目 Windows/Python 3.11 基线中目标 30 秒内完成（当前 7.50 秒） | 断网或不配置 key 后运行 `python -m pytest`，必须全部通过 |
+| `NFR-PERF-01` | 178 项离线测试不访问真实 LLM 或网络；在本项目 Windows/Python 3.11 基线中目标 30 秒内完成（当前 8.62 秒，176 passed、2 项 symlink 用例因 Windows 权限跳过） | 断网或不配置 key 后运行 `python -m pytest`，必须全部通过或仅平台能力用例明确跳过 |
 | `NFR-PERF-02` | 单次进入模型上下文的 validation details 默认不超过 1200 字符 | 长输出测试断言 `details` 长度、截断标志、原长度与 SHA-256 |
 | `NFR-PERF-03` | 默认单次 run 最多 5 个 agent steps、4 次 validations；相同失败连续 2 次打开熔断 | 加载默认 config，并通过 loop/config 单测验证终态 |
 | `NFR-PERF-04` | 本地命令默认 10 秒 timeout；真实 provider 请求默认 60 秒 timeout | command/LLM stub 测试断言 timeout 参数和结构化错误 |
@@ -809,7 +809,7 @@ docker run --rm -v "${PWD}\demo-config.json:/app/demo-config.json:ro" safecodelo
 | `FR-LOOP-01` | AgentLoop 负责 context → LLM → parse → dispatch → observation → stop | `finish`、parse error、max steps 和各类终态均有稳定结果 | `tests/test_loop.py` |
 | `FR-TOOL-01` | 工具由 registry 分发并返回结构化 `ToolResult` | 未注册工具安全失败；命令 exit code/stdout/stderr/timeout 可观察 | `tests/test_tools.py`、`tests/test_command_tool.py` |
 | `FR-FILE-01` | 文件操作限制在规范化后的 workspace 边界内 | `..` 和工作区外路径被拒绝，合法读写成功 | `tests/test_file_tools.py` |
-| `FR-GOV-01` | 所有工具与验证动作执行前经过 `allow/block/needs_approval` 判断 | 被 block 的 action 不调用 executor；验证动作不能成为旁路 | `tests/test_guardrails.py`、`tests/test_loop_tools_guardrails.py` |
+| `FR-GOV-01` | 所有工具与验证动作执行前经过带稳定 `rule_id`、severity 和 reason 的 `allow/block/needs_approval` 判断；优先级固定为 block > approval > allow | POSIX/PowerShell/cmd 删除变体、复合/间接 shell、路径穿越、symlink 越界、敏感文件和外部写入均有表驱动判定；配置 blocked/approval 正则实际生效且非法正则启动即失败；被 block 的 action 不调用 executor，验证动作不能成为旁路 | `tests/test_guardrails.py`、`tests/test_config.py`、`tests/test_cli_run.py`、`tests/test_loop_tools_guardrails.py` |
 | `FR-APR-01` | 风险动作使用可跨进程恢复的一次性审批状态机 | 未批准、拒绝、篡改、换参、重复消费均 fail closed | `tests/test_approval.py` |
 | `FR-FBK-01` | 普通命令与客观验证在 action 协议层分离 | `run_command` 不产生 validation feedback；`run_validation` 才产生分类结果 | `tests/test_feedback_loop.py`、`tests/test_actions.py` |
 | `FR-FBK-02` | 验证失败分类为稳定类别并以有界摘要进入模型上下文 | 八类结果可区分；完整证据留在日志；上下文包含长度、hash 和日志引用 | `tests/test_feedback.py`、`tests/test_feedback_loop.py` |

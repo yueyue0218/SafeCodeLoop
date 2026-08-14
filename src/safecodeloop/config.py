@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
@@ -111,6 +112,14 @@ def _validate_config(config: SafeCodeLoopConfig) -> SafeCodeLoopConfig:
             raise ConfigError(f"{_to_external_name(name)} must be a list")
         if not all(isinstance(item, str) and item for item in value):
             raise ConfigError(f"{_to_external_name(name)} must contain non-empty strings")
+        if name in {"blocked_command_patterns", "approval_required_patterns"}:
+            for index, pattern in enumerate(value):
+                try:
+                    re.compile(pattern)
+                except re.error as exc:
+                    raise ConfigError(
+                        f"{_to_external_name(name)}[{index}] has invalid regex: {exc}"
+                    ) from exc
         replacements[name] = tuple(value)
 
     for name in (

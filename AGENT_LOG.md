@@ -1158,3 +1158,19 @@ TDD 与设计判断：
 - Action/Loop/Guardrail 专项：`33 passed`。
 - 全量回归：`132 passed`。
 - `git diff --check` 和凭据模式扫描无异常后再进入 PR。
+
+## 2026-08-14 20:00 · T11.3 · Guardrail 规则与绕过测试深化
+
+### 红灯与边界决策
+
+- 先加入 POSIX、PowerShell、cmd 删除变体，大小写/空白、管道/逻辑运算符/分隔符、相对与绝对路径、symlink 越界、敏感文件、发布部署和全局安装的表驱动测试。
+- 首次专项运行结果为 `43 failed, 23 passed, 1 skipped`，明确暴露原实现只有少量正则、approval 配置未接线、decision 无规则元数据、`list_files` 未经过路径治理、非法配置正则未在启动期拒绝。
+- 采用确定性优先级 `blocked > needs_approval > allowed`；高风险且可可靠识别的动作阻止，无法可靠解释的复合/间接 shell 保守进入审批。
+
+### 实现与验证
+
+- `GuardrailDecision` 增加稳定 `rule_id` 和 `severity`，run/resume observation 同步记录这两项。
+- 引擎覆盖跨 shell 破坏性删除、数据库删除、PowerShell 混淆执行、敏感路径、父目录穿越、依赖安装、外部写入和复合/嵌套 shell。
+- 文件类动作统一执行 resolve 后工作区检查，阻止 symlink/junction 越界及敏感文件访问；`.env.example` 等模板保持允许。
+- CLI 同时接入 blocked/approval 配置模式；配置加载期编译正则并用字段名报告错误。
+- 专项结果：`66 passed, 1 skipped`；补充“symlink 别名不能隐藏敏感文件”回归后，全量结果：`176 passed, 2 skipped in 8.62s`。跳过项仅为当前 Windows 账户不能创建 symlink，测试用例仍保留供支持该能力的平台执行。

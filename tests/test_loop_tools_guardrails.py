@@ -64,6 +64,8 @@ def test_blocked_action_does_not_call_tool(tmp_path):
     assert called is False
     assert result.steps[0].observation["kind"] == "guardrail_result"
     assert result.steps[0].observation["status"] == "blocked"
+    assert result.steps[0].observation["rule_id"] == "command.destructive.root_delete"
+    assert result.steps[0].observation["severity"] == "critical"
 
 
 def test_allowed_write_file_action_updates_workspace(tmp_path):
@@ -107,6 +109,8 @@ def test_needs_approval_action_stops_before_running_tool(tmp_path):
     assert result.final_message == "dependency install requires approval"
     assert result.steps[0].observation["kind"] == "guardrail_result"
     assert result.steps[0].observation["status"] == "needs_approval"
+    assert result.steps[0].observation["rule_id"] == "command.dependency_install"
+    assert result.steps[0].observation["severity"] == "high"
     assert result.approval_id
     assert ApprovalStore(tmp_path / "approvals.json", SIGNING_KEY).get(result.approval_id).status == "pending"
 

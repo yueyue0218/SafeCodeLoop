@@ -103,6 +103,7 @@ def _handle_run_command(args) -> int:
             guardrail_engine=GuardrailEngine(
                 workspace,
                 blocked_command_patterns=config.blocked_command_patterns,
+                approval_required_patterns=config.approval_required_patterns,
             ),
             validator=Validator(),
             memory_store=MemoryStore(workspace / config.memory_path),
