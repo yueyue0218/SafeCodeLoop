@@ -1241,3 +1241,32 @@ TDD 与设计判断：
 - 在全新 `.tmp-t15-demo-venv` 中安装 wheel 后再次运行一键 demo，不依赖仓库 `demos/`、pytest、网络调用或 API key；退出 0。
 - 对安装后生成的 JSON 做真实解析，得到 schema version 1、`test_failure -> pass`、`pending -> approved -> consumed` 和 `success`。
 - 全量回归：`201 passed, 2 skipped in 7.92s`；跳过项仍仅为当前 Windows 账户不能创建 symlink。
+## 2026-08-14 23:09 · T15.5 · 审批完整记录签名安全修复
+
+触发的 Superpowers 流程：
+
+- `test-driven-development`：先用可复现攻击路径建立红灯，再做最小实现与重构。
+- `requesting-code-review`：专项转绿后继续检查损坏字段类型、审计字段和剩余回滚边界。
+- 项目作者确认：开发期间 Superpowers 插件的实际使用与 Gemini 陌生智能体冷启动均真实发生；本条不补造未保存的命令或墙钟时长。
+
+安全发现：
+
+- 旧实现的 HMAC 只覆盖 canonical action；直接把持久化 `status` 从 `pending` 改为 `approved` 时，action hash 仍有效，无法兑现“记录篡改安全失败”的威胁模型。
+- ApprovalRecord 也未持久化高分计划要求的 run ID、step ID、rule ID 与时间字段。
+
+TDD 记录：
+
+- 首轮红灯：status、reason、记录 ID 与状态转换签名测试为 `4 failed, 6 passed`。
+- 新增完整记录信封 HMAC 后专项为 `10 passed`。
+- 质量复审发现非字符串签名会泄漏普通 `TypeError`；新增红灯为 `1 failed, 10 passed`，字段类型校验后 `11 passed`。
+- 审计元数据扩展红灯为 `6 failed, 10 passed`；实现并签名保护 run/step/rule/时间后，审批专项 `16 passed`。
+- 主循环真实接线红灯为 `2 failed, 8 passed`；传入真实运行 ID、步骤序号和 guardrail rule ID 后通过。
+- 综合 demo 审计字段测试先红后绿；审批、主循环与 demo 相关范围最终 `28 passed`。
+- 增加 canonical arguments 顺序稳定性回归后，全量结果：`213 passed, 2 skipped in 8.83s`。
+
+人工判断与剩余边界：
+
+- 保留 action hash 作为稳定审批对象标识，另设完整记录签名，避免把两个职责混为一个字段。
+- 每次 pending → approved/rejected → consumed 合法转换都更新 `updated_at` 并重新签名。
+- 缺少新签名字段的旧审批记录不静默信任或迁移，而是安全失败并要求重新创建。
+- HMAC 可检测修改和换 ID 复制，但无法单独阻止攻击者回滚整个文件到先前有效签名快照；该限制已同步进入 README 与 SPEC，不声称达到 OS 级防回滚。

@@ -2,7 +2,7 @@
 
 ## Required Before Creating Release
 
-- [x] `python -m pytest` passes locally (`201 passed, 2 skipped`; symlink capability only).
+- [x] `python -m pytest` passes locally (`213 passed, 2 skipped`; symlink capability only).
 - [x] `.gitlab-ci.yml` contains a `unit-test` job that runs `python -m pytest`.
 - [x] GitHub Actions verifies tests, distributions, and isolated wheel installation.
 - [x] `Dockerfile` and `.dockerignore` are present.
@@ -12,7 +12,7 @@
 - [x] `THIRD_PARTY_NOTICES.md` records direct runtime, build, and test dependency licenses.
 - [x] Installed wheel runs `safecodeloop demo main-contribution` without a network connection or API key and writes valid audit JSON.
 - [x] `README.md` is complete.
-- [x] `REFLECTION.md` is reviewed and personalized by the project author.
+- [x] `REFLECTION.md` is reviewed, corrected, and confirmed by the project author; AI assistance is disclosed in the document.
 - [x] `submission.jsonc` is outside the source archive and filled with real student/repository/release values.
 
 ## Package Command

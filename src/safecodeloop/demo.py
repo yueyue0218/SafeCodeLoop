@@ -97,6 +97,7 @@ def run_main_contribution_demo(
 
     approval_id = initial_result.approval_id
     pending_record = approval_store.get(approval_id)
+    final_record = pending_record
     transitions = [pending_record.status]
     resumed_result: RunResult | None = None
     feedback_sequence = [
@@ -112,14 +113,16 @@ def run_main_contribution_demo(
     if decision == "approve":
         transitions.append(approval_store.approve(approval_id).status)
         resumed_result = loop.resume(approval_id, _DEMO_TASK)
-        transitions.append(approval_store.get(approval_id).status)
+        final_record = approval_store.get(approval_id)
+        transitions.append(final_record.status)
         if transitions[-1] != "consumed" or resumed_result.status != "success":
             raise DemoError(
                 "approved demo action was not consumed and completed successfully"
             )
         final_status = resumed_result.status
     else:
-        transitions.append(approval_store.reject(approval_id).status)
+        final_record = approval_store.reject(approval_id)
+        transitions.append(final_record.status)
         final_status = "rejected"
 
     audit = redact_value(
@@ -132,7 +135,12 @@ def run_main_contribution_demo(
                 "id": pending_record.id,
                 "action_hash": pending_record.action_hash,
                 "action_hash_algorithm": "HMAC-SHA256",
-                "rule_id": initial_result.steps[-1].observation.get("rule_id"),
+                "run_id": pending_record.run_id,
+                "step_id": pending_record.step_id,
+                "rule_id": pending_record.rule_id,
+                "reason": pending_record.reason,
+                "created_at": pending_record.created_at,
+                "updated_at": final_record.updated_at,
                 "transitions": transitions,
             },
             "initial_run": _run_result_payload(initial_result),

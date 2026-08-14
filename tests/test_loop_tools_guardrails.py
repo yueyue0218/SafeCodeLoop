@@ -113,7 +113,38 @@ def test_needs_approval_action_stops_before_running_tool(tmp_path):
     assert result.steps[0].observation["rule_id"] == "command.dependency_install"
     assert result.steps[0].observation["severity"] == "high"
     assert result.approval_id
-    assert ApprovalStore(tmp_path / "approvals.json", SIGNING_KEY).get(result.approval_id).status == "pending"
+    record = ApprovalStore(tmp_path / "approvals.json", SIGNING_KEY).get(
+        result.approval_id
+    )
+    assert record.status == "pending"
+    assert record.rule_id == "command.dependency_install"
+    assert record.step_id == 0
+    assert len(record.run_id) == 32
+
+
+def test_approval_record_tracks_the_originating_loop_step(tmp_path):
+    registry = ToolRegistry()
+    registry.register("list_files", lambda arguments: ToolResult(ok=True, data={"files": []}))
+    registry.register("run_command", lambda arguments: ToolResult(ok=True))
+    store = ApprovalStore(tmp_path / "approvals.json", SIGNING_KEY)
+    loop = AgentLoop(
+        llm=MockLLM(
+            [
+                '{"type": "list_files", "path": "."}',
+                '{"type": "run_command", "command": "python -m pip install requests"}',
+            ]
+        ),
+        max_steps=2,
+        tool_registry=registry,
+        guardrail_engine=GuardrailEngine(tmp_path),
+        approval_store=store,
+    )
+
+    result = loop.run("inspect before installing")
+    record = store.get(result.approval_id)
+
+    assert record.step_id == 1
+    assert record.rule_id == "command.dependency_install"
 
 
 def test_approved_action_executes_once_and_feedback_returns_to_loop(tmp_path):

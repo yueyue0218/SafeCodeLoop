@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 from safecodeloop.cli import main
 
@@ -43,6 +44,11 @@ def test_main_contribution_demo_approves_and_writes_audit_log(
     assert len(audit["approval"]["action_hash"]) == 64
     assert audit["approval"]["action_hash_algorithm"] == "HMAC-SHA256"
     assert audit["approval"]["rule_id"] == "config.approval.0"
+    assert len(audit["approval"]["run_id"]) == 32
+    assert audit["approval"]["step_id"] == 5
+    assert "configured approval command pattern" in audit["approval"]["reason"]
+    assert datetime.fromisoformat(audit["approval"]["created_at"])
+    assert datetime.fromisoformat(audit["approval"]["updated_at"])
     assert audit["initial_run"]["status"] == "needs_approval"
     assert audit["resumed_run"]["status"] == "success"
     resumed_observation = audit["resumed_run"]["steps"][0]["observation"]

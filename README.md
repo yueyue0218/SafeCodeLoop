@@ -58,7 +58,7 @@ python -m pytest
 Current local result:
 
 ```text
-201 passed, 2 skipped
+213 passed, 2 skipped
 ```
 
 ## CLI Usage
@@ -273,7 +273,7 @@ After approval, resume the original task with the same provider configuration:
 safecodeloop run --resume <id> --config .\config.json --workspace .\my-workspace continue the task
 ```
 
-Each approval is bound to an HMAC-SHA256 signature of the canonical action and can be consumed only once. The signing key is stored separately in the OS keyring. Rejected, modified, already consumed, or tampered records fail closed. Approval files may contain action arguments, so `.safecodeloop/` remains local and excluded from Git.
+Each approval keeps a stable HMAC-SHA256 action hash and a separate HMAC signature over the complete record envelope: approval ID, action, action hash, reason, status, run ID, step ID, rule ID, and timestamps. Every legal state transition re-signs the record with the key stored in the OS keyring. Rejected, modified, copied under another ID, already consumed, malformed, or tampered records fail closed. Records created by versions without the complete-record signature are intentionally rejected and must be recreated. Approval files may contain action arguments, so `.safecodeloop/` remains local and excluded from Git.
 
 ## Docker
 
@@ -364,5 +364,6 @@ SafeCodeLoop is a teaching harness, not a production sandbox. Allowed commands s
 - Core tests and deterministic demos use `MockLLM`; real-provider runs require network access, a configured key, and an available compatible model.
 - A usable OS keyring backend must be available on the target system.
 - Pattern redaction cannot identify every previously unknown proprietary secret format; operators must still avoid placing credentials in tasks, source files, or shell commands.
+- Complete-record signatures detect modification and ordinary copy/replay attempts, but a privileged attacker who can roll back the entire approval file to a previously valid signed snapshot remains outside this local-file state machine's rollback guarantees.
 - WebUI is intentionally not implemented; this follows the CLI-only plus release-link route allowed for Agent Harness submissions.
 - Python wheel installation requires access to the declared `keyring` dependency unless it is already available locally.
