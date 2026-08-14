@@ -338,6 +338,11 @@ CLI 行为：
 - 指定 workspace。
 - 输出运行状态和步骤日志。
 - 显示 guardrail 和 feedback 结果。
+- `safecodeloop demo main-contribution` 在无需网络、API key 或生产 credential backend 的情况下运行完整综合演示。
+- 综合演示使用真实 AgentLoop、Validator、GuardrailEngine、工具与 ApprovalStore，依次产生 `test_failure`、修复后 `pass`、`needs_approval` 和批准后恢复执行。
+- 默认批准路径显示 `pending -> approved -> consumed`；`--decision reject` 显示 `pending -> rejected` 且不执行待审批动作。
+- 终端只输出反馈序列、审批状态转换、action hash、终态和审计文件位置；完整 action/observation 写入结构化 JSON。
+- 为避免演示本身产生外部副作用，demo-specific policy 将一个无害本地命令标记为需审批；该动作仍由真实 guardrail、HMAC action hash 和一次性消费状态机处理。
 
 WebUI：
 
@@ -350,7 +355,7 @@ WebUI：
 
 | NFR ID | 可测量要求 | 验收方法 |
 |---|---|---|
-| `NFR-PERF-01` | 201 项离线测试不访问真实 LLM 或网络；在本项目 Windows/Python 3.11 基线中目标 30 秒内完成（当前 8.61 秒，199 passed、2 项 symlink 用例因 Windows 权限跳过） | 断网或不配置 key 后运行 `python -m pytest`，必须全部通过或仅平台能力用例明确跳过 |
+| `NFR-PERF-01` | 203 项离线测试不访问真实 LLM 或网络；在本项目 Windows/Python 3.11 基线中目标 30 秒内完成（当前 7.92 秒，201 passed、2 项 symlink 用例因 Windows 权限跳过） | 断网或不配置 key 后运行 `python -m pytest`，必须全部通过或仅平台能力用例明确跳过 |
 | `NFR-PERF-02` | 单次进入模型上下文的 validation details 默认不超过 1200 字符 | 长输出测试断言 `details` 长度、截断标志、原长度与 SHA-256 |
 | `NFR-PERF-03` | 默认单次 run 最多 5 个 agent steps、4 次 validations；相同失败连续 2 次打开熔断 | 加载默认 config，并通过 loop/config 单测验证终态 |
 | `NFR-PERF-04` | 本地命令默认 10 秒 timeout；真实 provider 请求默认 60 秒 timeout | command/LLM stub 测试断言 timeout 参数和结构化错误 |
@@ -831,7 +836,7 @@ docker run --rm -v "${PWD}\demo-config.json:/app/demo-config.json:ro" safecodelo
 | `NFR-OBS-01` | 每一步保存 action、治理、工具、feedback 和终态证据 | CLI 可生成结构化 run log，feedback evidence 可由 hash 与位置核对 | `tests/test_cli_run.py`、`tests/test_feedback_loop.py` |
 | `DEMO-A6-01` | 确定性展示危险动作执行前拦截 | 最终状态为 `blocked`，危险命令未执行 | `tests/test_demo_guardrail.py`、`demos/dangerous_action.json` |
 | `DEMO-A6-02` | 确定性展示失败反馈改变下一步动作 | 首次 validation 失败，修正后 pass，最终 success | `tests/test_demo_feedback.py`、`demos/feedback_correction.json` |
-| `DEMO-MAIN-01` | 展示主要贡献“反馈控制面”的完整行为 | failure → feedback → correction → pass，并证明后续危险动作仍受治理 | `tests/test_demo_main_contribution.py`、`demos/governance_feedback_depth.json` |
+| `DEMO-MAIN-01` | 一条命令展示反馈控制面与可恢复审批状态机 | `safecodeloop demo main-contribution` 确定性产生 test_failure → pass、pending → approved → consumed、action hash、success 和结构化审计 JSON；reject 分支不执行待审批动作 | `tests/test_cli_demo.py`、`src/safecodeloop/demo.py`、GitHub wheel smoke test |
 | `DIST-01` | CLI、release 与 Docker 提供可复现分发路径 | 最终 tag/asset 与提交 commit 对齐；当前提交的 source 测试通过；镜像可运行 help/version 和 MockLLM 反馈演示 | §10.3、`.github/workflows/ci.yml`、`.gitlab-ci.yml`、`Dockerfile`、`RELEASE_CHECKLIST.md` |
 | `DIST-02` | 项目许可证、作者与第三方依赖许可可审计并进入分发产物 | wheel 声明 MIT SPDX expression、LICENSE 和作者；sdist 包含项目与第三方声明文件 | `tests/test_packaging_metadata.py`、`LICENSE`、`THIRD_PARTY_NOTICES.md`、`pyproject.toml` |
 

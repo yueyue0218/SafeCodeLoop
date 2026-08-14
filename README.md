@@ -58,7 +58,7 @@ python -m pytest
 Current local result:
 
 ```text
-199 passed, 2 skipped
+201 passed, 2 skipped
 ```
 
 ## CLI Usage
@@ -93,6 +93,48 @@ The validation loop has deterministic stopping controls. Code or project-configu
 
 ## Demos
 
+### Recommended: One-Command Main Contribution Demo
+
+Run the complete deterministic mechanism demo without a network connection or
+API key:
+
+```powershell
+safecodeloop demo main-contribution
+```
+
+The command uses the real AgentLoop, Validator, GuardrailEngine, tools, and
+ApprovalStore to demonstrate:
+
+1. MockLLM writes an incorrect implementation.
+2. Validation reports `test_failure`.
+3. MockLLM corrects the implementation and validation reports `pass`.
+4. A demo policy marks a harmless command as requiring human approval.
+5. The default decision drives `pending -> approved -> consumed` and resumes the exact hashed action.
+6. A structured `main-contribution-audit.json` records every action, observation, action hash, transition, and final status.
+
+The concise terminal summary looks like:
+
+```text
+feedback: test_failure -> pass
+approval: pending -> approved -> consumed
+action_hash: <64 hexadecimal characters>
+final_status: success
+audit_log: <generated path>
+```
+
+By default, an isolated output directory with no date in its name is created
+under the operating-system temporary directory. Select a predictable location
+or demonstrate rejection with:
+
+```powershell
+safecodeloop demo main-contribution --output-dir .\demo-output
+safecodeloop demo main-contribution --decision reject --output-dir .\demo-rejected
+```
+
+The governed command is deliberately harmless and local, so the approval state
+machine is visible without installing a package, publishing, accessing a key,
+or changing external state.
+
 ### Demo 1: Dangerous Action Blocked
 
 ```powershell
@@ -121,7 +163,7 @@ Expected result:
 - second pytest run produces `feedback_kind: pass`
 - final status is `success`
 
-### Demo 3: Main Contribution
+### Demo 3: Low-Level Combined Script
 
 ```powershell
 Set-Content -Path .\demo-config.json -Value '{"maxSteps":6}'

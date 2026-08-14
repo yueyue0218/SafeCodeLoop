@@ -2,7 +2,7 @@
 
 ## Required Before Creating Release
 
-- [x] `python -m pytest` passes locally (`199 passed, 2 skipped`; symlink capability only).
+- [x] `python -m pytest` passes locally (`201 passed, 2 skipped`; symlink capability only).
 - [x] `.gitlab-ci.yml` contains a `unit-test` job that runs `python -m pytest`.
 - [x] GitHub Actions verifies tests, distributions, and isolated wheel installation.
 - [x] `Dockerfile` and `.dockerignore` are present.
@@ -10,6 +10,7 @@
 - [x] `LICENSE` declares MIT with copyright holder 曹潇月.
 - [x] `pyproject.toml` declares the MIT SPDX expression, license file, author, README, classifiers, and project URLs.
 - [x] `THIRD_PARTY_NOTICES.md` records direct runtime, build, and test dependency licenses.
+- [x] Installed wheel runs `safecodeloop demo main-contribution` without a network connection or API key and writes valid audit JSON.
 - [x] `README.md` is complete.
 - [x] `REFLECTION.md` is reviewed and personalized by the project author.
 - [x] `submission.jsonc` is outside the source archive and filled with real student/repository/release values.
@@ -68,5 +69,6 @@ release\SHA256SUMS
 - [x] Confirm the new source distribution contains `LICENSE`, `README.md`, and `THIRD_PARTY_NOTICES.md`.
 - [x] Generate SHA-256 checksums for the zip, wheel, and source distribution.
 - [x] Install the wheel in a new virtual environment and run `--help` and `--version`.
+- [x] Run the one-command main-contribution demo from the isolated wheel environment.
 - [x] Point `v0.1.0` at the final `main` commit and attach all four artifacts to the GitHub Release.
 - [x] Verify the public Release URL without relying on a repository checkout.

@@ -40,3 +40,4 @@ jobs:
           python -m venv "$RUNNER_TEMP/safecodeloop-smoke"
           "$RUNNER_TEMP/safecodeloop-smoke/bin/python" -m pip install dist/*.whl
           "$RUNNER_TEMP/safecodeloop-smoke/bin/safecodeloop" --help
+          "$RUNNER_TEMP/safecodeloop-smoke/bin/safecodeloop" demo main-contribution --output-dir "$RUNNER_TEMP/safecodeloop-demo"
