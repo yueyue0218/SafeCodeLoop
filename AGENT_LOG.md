@@ -1191,3 +1191,27 @@ TDD 与设计判断：
 - 代码质量复审先发现带空格的引号 secret 只遮住首词，以及字典键可能泄漏；新增 2 个红灯测试后修正为完整引号值和键值都脱敏。
 - 对公开 `RunResult.steps[].observation` 继续复审时发现它仍保留工具原始输出；同时发现 `resume()` 的 guardrail return 缩进错误，使审批后继续执行允许动作时引用未定义 `next_id`。先加入 2 个失败测试，再统一清理公开 observation/恢复动作副本，并把 return 收回风险分支内部。
 - 脱敏专项最终 `10 passed`；受影响范围 `70 passed`；修正后全量 `195 passed, 2 skipped in 8.57s`。
+
+## 2026-08-14 22:00 · T15.2 · 分发元数据与许可证
+
+### 用户决策与审计边界
+
+- 用户明确选择 MIT License，并指定作者为曹潇月。
+- 审计范围覆盖直接运行依赖 `keyring`、构建后端 `setuptools`、构建工具 `build` 和测试工具 `pytest`；它们的上游许可声明均为 MIT。
+- 第三方声明明确区分直接依赖审计与传递依赖：发布到新环境前仍需按实际解析版本复核，不把简表当作上游完整许可证替代品。
+
+### TDD 与实现判断
+
+- 先新增 `tests/test_packaging_metadata.py`，首次专项运行 `4 failed`：缺少 `LICENSE`、`THIRD_PARTY_NOTICES.md`、`MANIFEST.in`，且 `pyproject.toml` 没有 readme/license/author/URL 等字段。
+- 添加标准 MIT 正文与 `Copyright (c) 2026 曹潇月`，并增加作者、README、keywords、Python/平台 classifiers 和项目 URL。
+- 复核当前 Python packaging 规范后，没有保留已弃用的 license table 和 License classifier；改用 PEP 639 SPDX `MIT`、`license-files = ["LICENSE"]`，并将 setuptools 构建下限提升为支持该规范的 `77.0.3`。
+- 添加直接依赖许可表、发布 manifest、README 作者/原创边界/AI 协作说明，并把分发验收映射到 SPEC 与 release checklist。
+- 专项测试转绿：`4 passed`。
+
+### 构建、干净安装与完整回归
+
+- `python -m build --outdir .tmp-t15-build` 成功，构建过程没有许可证格式弃用警告。
+- wheel 文件清单包含 `safecodeloop-0.1.0.dist-info/licenses/LICENSE`；METADATA 2.4 包含 `Author: 曹潇月`、`License-Expression: MIT`、`License-File: LICENSE` 和四个项目 URL。
+- sdist 文件清单包含 `LICENSE`、`README.md`、`THIRD_PARTY_NOTICES.md`、`MANIFEST.in` 和元数据测试。
+- 新建虚拟环境并从 wheel 安装全部声明依赖；`safecodeloop --help`、`--version` 通过，安装后 metadata 再次读取为曹潇月 / MIT / LICENSE。
+- 全量回归：`199 passed, 2 skipped in 8.61s`；跳过项仍仅为当前 Windows 账户不能创建 symlink。

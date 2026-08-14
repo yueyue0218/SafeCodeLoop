@@ -1,13 +1,33 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "safecodeloop"
 version = "0.1.0"
 description = "A minimal coding agent harness with guardrails and feedback loops."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "曹潇月" }]
 requires-python = ">=3.11"
 dependencies = ["keyring>=25,<26"]
+keywords = ["coding-agent", "guardrails", "feedback-loop", "ai4se"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Testing",
+]
+
+[project.urls]
+Homepage = "https://github.com/yueyue0218/SafeCodeLoop"
+Repository = "https://github.com/yueyue0218/SafeCodeLoop"
+Issues = "https://github.com/yueyue0218/SafeCodeLoop/issues"
+Releases = "https://github.com/yueyue0218/SafeCodeLoop/releases"
 
 [project.scripts]
 safecodeloop = "safecodeloop.cli:main"
