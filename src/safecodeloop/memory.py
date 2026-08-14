@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from safecodeloop.llm import redact_secrets
+from safecodeloop.redaction import redact_secrets
 
 
 @dataclass(frozen=True)

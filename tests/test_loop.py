@@ -1,5 +1,6 @@
-from safecodeloop.llm import MockLLM
+from safecodeloop.llm import LLMResponse, MockLLM
 from safecodeloop.loop import AgentLoop
+from safecodeloop.redaction import SecretRedactor
 
 
 def test_loop_stops_successfully_when_llm_returns_finish():
@@ -60,3 +61,29 @@ def test_loop_returns_max_steps_when_no_finish_action_arrives():
     assert result.status == "max_steps"
     assert result.final_message == "Reached max steps without finish action."
     assert len(result.steps) == 2
+
+
+def test_loop_redacts_known_secret_at_untrusted_llm_boundary():
+    secret = "runtime-opaque-loop-secret"
+
+    class UnredactedLLM:
+        def __init__(self):
+            self.calls = []
+
+        def generate(self, messages):
+            self.calls.append(messages)
+            return LLMResponse(
+                content=f'{{"type":"finish","message":"{secret}"}}',
+                provider="unsafe-test-double",
+                metadata={"debug": secret},
+            )
+
+    llm = UnredactedLLM()
+    loop = AgentLoop(llm=llm, redactor=SecretRedactor([secret]))
+
+    result = loop.run(f"never reveal {secret}")
+
+    assert secret not in str(llm.calls)
+    assert secret not in result.final_message
+    assert secret not in result.steps[0].llm_response
+    assert "[REDACTED]" in result.final_message

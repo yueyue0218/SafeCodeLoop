@@ -4,6 +4,7 @@ from safecodeloop.feedback import Validator
 from safecodeloop.guardrails import GuardrailEngine
 from safecodeloop.llm import MockLLM
 from safecodeloop.loop import AgentLoop
+from safecodeloop.redaction import SecretRedactor
 from safecodeloop.tools import ToolRegistry, ToolResult, create_command_tool_registry, create_file_tool_registry
 
 
@@ -144,6 +145,81 @@ def test_approved_action_executes_once_and_feedback_returns_to_loop(tmp_path):
     assert called == ["python -m pip install requests"]
     assert store.get(record.id).status == "consumed"
     assert "approved_tool_result" in llm.calls[0][-1]["content"]
+
+
+def test_resume_can_continue_with_allowed_action_and_redacts_observations(tmp_path):
+    secret = "runtime-opaque-resume-secret"
+    calls = []
+    registry = ToolRegistry()
+
+    def run_command(arguments):
+        calls.append(arguments["command"])
+        return ToolResult(
+            ok=True,
+            data={"exit_code": 0, "stdout": secret, "stderr": ""},
+        )
+
+    registry.register("run_command", run_command)
+    store = ApprovalStore(tmp_path / "approvals.json", SIGNING_KEY)
+    approved_action = Action(
+        type="run_command",
+        arguments={"command": "python -m pip install requests"},
+    )
+    record = store.create(approved_action, "dependency install requires approval")
+    store.approve(record.id)
+    llm = MockLLM(
+        [
+            '{"type":"run_command","command":"echo continue"}',
+            '{"type":"finish","message":"done"}',
+        ]
+    )
+    loop = AgentLoop(
+        llm=llm,
+        max_steps=2,
+        tool_registry=registry,
+        guardrail_engine=GuardrailEngine(tmp_path),
+        approval_store=store,
+        redactor=SecretRedactor([secret]),
+    )
+
+    result = loop.resume(record.id, "continue after approval")
+
+    assert result.status == "success"
+    assert calls == ["python -m pip install requests", "echo continue"]
+    assert secret not in str(result.steps)
+    assert secret not in str(llm.calls)
+
+
+def test_public_loop_observation_is_redacted(tmp_path):
+    secret = "runtime-opaque-tool-output-secret"
+    registry = ToolRegistry()
+    registry.register(
+        "run_command",
+        lambda arguments: ToolResult(
+            ok=False,
+            data={"exit_code": 1, "stdout": "", "stderr": secret},
+            error=f"command failed with {secret}",
+        ),
+    )
+    llm = MockLLM(
+        [
+            '{"type":"run_command","command":"echo inspect"}',
+            '{"type":"finish","message":"done"}',
+        ]
+    )
+    loop = AgentLoop(
+        llm=llm,
+        max_steps=2,
+        tool_registry=registry,
+        redactor=SecretRedactor([secret]),
+    )
+
+    result = loop.run("inspect output")
+
+    assert result.status == "success"
+    assert secret not in str(result.steps[0].observation)
+    assert "[REDACTED]" in str(result.steps[0].observation)
+    assert secret not in str(llm.calls)
 
 
 def test_rejected_approval_never_calls_tool(tmp_path):

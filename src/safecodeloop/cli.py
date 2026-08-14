@@ -14,6 +14,7 @@ from safecodeloop.guardrails import GuardrailEngine
 from safecodeloop.llm import LLMError, MockLLM, OpenAICompatibleLLM
 from safecodeloop.loop import AgentLoop, RunResult
 from safecodeloop.memory import MemoryStore
+from safecodeloop.redaction import SecretRedactor, redact_secrets, redact_value
 from safecodeloop.tools import create_agent_tool_registry
 
 
@@ -89,13 +90,14 @@ def main(argv=None):
 
 
 def _handle_run_command(args) -> int:
+    redactor = SecretRedactor()
     try:
         config = load_config(args.config)
         workspace = Path(args.workspace or config.workspace_root)
         workspace.mkdir(parents=True, exist_ok=True)
         approval_store = _LazyApprovalStore(lambda: _approval_store(workspace))
 
-        llm = _create_llm(config, args.mock_script)
+        llm = _create_llm(config, args.mock_script, redactor)
         loop = AgentLoop(
             llm=llm,
             max_steps=config.max_steps,
@@ -110,21 +112,22 @@ def _handle_run_command(args) -> int:
             approval_store=approval_store,
             max_validations=config.max_validations,
             max_repeated_failures=config.max_repeated_failures,
+            redactor=redactor,
         )
         task = " ".join(args.task)
         result = loop.resume(args.resume, task) if args.resume else loop.run(task)
     except (ApprovalError, ConfigError, CredentialError, LLMError, OSError, ValueError) as exc:
-        print(f"run error: {exc}")
+        print(f"run error: {redactor.redact_text(str(exc))}")
         return 2
 
     print(f"status: {result.status}")
     if result.final_message:
-        print(result.final_message)
+        print(redactor.redact_text(result.final_message))
     if result.approval_id:
         print(f"approval_id: {result.approval_id}")
 
     if args.log:
-        _write_run_log(Path(args.log), result)
+        _write_run_log(Path(args.log), result, redactor=redactor)
 
     return 0 if result.status == "success" else 1
 
@@ -154,19 +157,23 @@ def _handle_approval_command(args, parser) -> int:
         else:
             record = store.reject(args.approval_id)
     except ApprovalError as exc:
-        print(f"approval error: {exc}")
+        print(f"approval error: {redact_secrets(str(exc))}")
         return 2
     print(f"approval {record.id}: {record.status}")
-    print(f"reason: {record.reason}")
+    print(f"reason: {redact_secrets(record.reason)}")
     print(f"action_hash: {record.action_hash}")
     return 0
 
 
-def _create_llm(config, mock_script):
+def _create_llm(config, mock_script, redactor: SecretRedactor | None = None):
+    active_redactor = redactor or SecretRedactor()
     if config.model_provider == "mock":
         if not mock_script:
             raise ConfigError("--mock-script is required when modelProvider is mock")
-        return MockLLM(_load_mock_script(Path(mock_script)))
+        return MockLLM(
+            _load_mock_script(Path(mock_script)),
+            redactor=active_redactor,
+        )
 
     if config.model_provider == "openai-compatible":
         api_key = CredentialStore().get_key(config.credential_provider)
@@ -174,6 +181,7 @@ def _create_llm(config, mock_script):
             raise CredentialError(
                 f"credential is not configured for provider: {config.credential_provider}"
             )
+        active_redactor.add_secret(api_key)
         return OpenAICompatibleLLM(
             api_key=api_key,
             model=config.model,
@@ -202,13 +210,23 @@ def _load_mock_script(path: Path) -> list[str]:
     return responses
 
 
-def _write_run_log(path: Path, result: RunResult) -> None:
+def _write_run_log(
+    path: Path,
+    result: RunResult,
+    redactor: SecretRedactor | None = None,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(_run_result_to_dict(result), indent=2), encoding="utf-8")
+    path.write_text(
+        json.dumps(_run_result_to_dict(result, redactor=redactor), indent=2),
+        encoding="utf-8",
+    )
 
 
-def _run_result_to_dict(result: RunResult) -> dict:
-    return {
+def _run_result_to_dict(
+    result: RunResult,
+    redactor: SecretRedactor | None = None,
+) -> dict:
+    payload = {
         "status": result.status,
         "final_message": result.final_message,
         "approval_id": result.approval_id,
@@ -224,6 +242,7 @@ def _run_result_to_dict(result: RunResult) -> dict:
             for step in result.steps
         ],
     }
+    return redact_value(payload, redactor=redactor)
 
 
 def _handle_key_command(args, parser):
@@ -252,7 +271,7 @@ def _handle_key_command(args, parser):
             print(f"{args.provider}: cleared")
             return 0
     except CredentialError as exc:
-        print(f"credential error: {exc}")
+        print(f"credential error: {redact_secrets(str(exc))}")
         return 2
 
     parser.error(f"unknown key subcommand: {args.key_command}")

@@ -350,7 +350,7 @@ WebUI：
 
 | NFR ID | 可测量要求 | 验收方法 |
 |---|---|---|
-| `NFR-PERF-01` | 178 项离线测试不访问真实 LLM 或网络；在本项目 Windows/Python 3.11 基线中目标 30 秒内完成（当前 8.62 秒，176 passed、2 项 symlink 用例因 Windows 权限跳过） | 断网或不配置 key 后运行 `python -m pytest`，必须全部通过或仅平台能力用例明确跳过 |
+| `NFR-PERF-01` | 197 项离线测试不访问真实 LLM 或网络；在本项目 Windows/Python 3.11 基线中目标 30 秒内完成（当前 8.57 秒，195 passed、2 项 symlink 用例因 Windows 权限跳过） | 断网或不配置 key 后运行 `python -m pytest`，必须全部通过或仅平台能力用例明确跳过 |
 | `NFR-PERF-02` | 单次进入模型上下文的 validation details 默认不超过 1200 字符 | 长输出测试断言 `details` 长度、截断标志、原长度与 SHA-256 |
 | `NFR-PERF-03` | 默认单次 run 最多 5 个 agent steps、4 次 validations；相同失败连续 2 次打开熔断 | 加载默认 config，并通过 loop/config 单测验证终态 |
 | `NFR-PERF-04` | 本地命令默认 10 秒 timeout；真实 provider 请求默认 60 秒 timeout | command/LLM stub 测试断言 timeout 参数和结构化错误 |
@@ -376,10 +376,10 @@ SafeCodeLoop 采用以下信任假设：
 | `THR-01` | Prompt injection 或 LLM 直接提出危险 shell action | 模型响应先经 schema parser，再由 guardrail 在 executor 前判定 | `tests/test_actions.py`、`tests/test_guardrails.py`、危险动作 demo | 规则匹配不能覆盖所有 shell 混淆和间接副作用 |
 | `THR-02` | 通过绝对路径、`..` 等方式访问 workspace 外文件 | 路径规范化后执行 containment check，越界读写拒绝 | `tests/test_file_tools.py` | 符号链接、挂载点及平台路径语义仍需操作系统级隔离补强 |
 | `THR-03` | 将风险命令伪装成 validation 绕过普通命令治理 | `run_command` 与 `run_validation` 共享同一 guardrail；validation 只改变反馈语义，不改变权限 | `tests/test_loop_tools_guardrails.py`、`tests/test_feedback_loop.py` | 自定义安全命令仍可能执行其内部包含的高风险逻辑 |
-| `THR-04` | API key 经 CLI 参数、配置、日志或 memory 泄露 | hidden input、OS keyring、secret redaction；生产 CLI 无明文文件 fallback | `tests/test_credentials.py`、`tests/test_memory.py` | 已被外部进程或系统管理员攻破的主机不在保护范围内 |
+| `THR-04` | API key 经模型上下文/响应、CLI 异常、action、observation、run log 或 memory 泄露 | hidden input、OS keyring、共享递归 redactor；真实 provider 的已加载 key 作为运行时已知 secret 注册；生产 CLI 无明文文件 fallback | `tests/test_redaction.py`、`tests/test_llm.py`、`tests/test_cli_run.py`、`tests/test_loop.py`、`tests/test_memory.py` | 模式无法识别所有未知专有 secret；短于 8 字符的值为避免误伤不做精确注册；已被外部进程或系统管理员攻破的主机不在保护范围内 |
 | `THR-05` | 审批文件被改写、换参或复制后重放 | canonical action + HMAC-SHA256；签名 key 独立存于 keyring；批准在工具调用前一次性消费 | `tests/test_approval.py` | 本地审批文件仍可能暴露 action 参数，因此 `.safecodeloop/` 必须保持本地并排除出 Git |
 | `THR-06` | 模型在代码写入或 validation 失败后直接声明成功 | harness 根据真实工具事件维护 completion gate；新的客观 pass 前拒绝 `finish` | `tests/test_loop.py`、`tests/test_feedback_loop.py` | 配置错误或覆盖不足的 validator 可能给出不充分的 pass |
-| `THR-07` | 超长 stdout/stderr 挤占上下文或把敏感内容反射给模型 | 完整 evidence 留在日志；模型只接收有界、脱敏摘要和 hash/reference | `tests/test_feedback.py`、`tests/test_feedback_loop.py` | 日志本身仍需由操作者控制文件权限和保留周期 |
+| `THR-07` | 超长 stdout/stderr 挤占上下文或把敏感内容反射给模型 | 除 secret 替换外的完整 evidence 留在日志；模型只接收有界脱敏摘要和 hash/reference；run log 序列化前递归脱敏 | `tests/test_feedback.py`、`tests/test_feedback_loop.py`、`tests/test_redaction.py`、`tests/test_cli_run.py` | 日志本身仍需由操作者控制文件权限和保留周期 |
 | `THR-08` | 无限步骤、无限验证或相同失败重复消耗资源 | `maxSteps`、命令 timeout、`maxValidations` 和重复失败熔断器 | `tests/test_loop.py`、`tests/test_command_tool.py`、`tests/test_feedback_loop.py` | 单次允许命令仍可能消耗较多 CPU、内存或磁盘 |
 | `THR-09` | Provider 鉴权、超时或异常响应导致崩溃并泄露 key | adapter 将错误转换为不含 secret 的稳定异常；核心测试默认不访问网络 | `tests/test_llm.py`、`tests/test_credentials.py` | 第三方服务的可用性、隐私策略和兼容性由供应商控制 |
 | `THR-10` | Release 或镜像混入 `.git`、凭据、审批状态或本地日志 | release 基于 `git ls-files`；归档和 image 内容执行排除检查 | `RELEASE_CHECKLIST.md`、`.dockerignore`、Docker 验证记录 | 已被错误提交进 Git 历史的内容不会被打包规则自动消除，发布前仍需凭据扫描 |
@@ -407,7 +407,7 @@ SafeCodeLoop 采用以下信任假设：
 | `NFR-OBS-02` | 每个 step 记录 LLM response、parsed action 和 observation；guardrail/feedback observation 包含稳定类别与原因 | loop、guardrail、feedback 和 demo 测试 |
 | `NFR-OBS-03` | 完整 validation evidence 留在 step/run log；模型上下文仅包含有界摘要、原字符数、SHA-256 和 evidence 位置 | 长输出 feedback 测试 |
 | `NFR-OBS-04` | 普通 `run_command` 不产生 validation feedback；只有显式 `run_validation` 产生客观验证事件 | `tests/test_feedback_loop.py` |
-| `NFR-OBS-05` | API key 和 approval signing key 不得进入 LLM context、memory、run log 或 status 输出 | credentials、memory、LLM redaction 测试及提交前 secret scan |
+| `NFR-OBS-05` | API key 和 approval signing key 不得进入 LLM context/response、memory、run log、CLI status 或异常输出 | `tests/test_redaction.py`、`tests/test_llm.py`、`tests/test_loop.py`、`tests/test_cli_run.py`、`tests/test_memory.py` 及提交前 secret scan |
 
 ### 6.5 可靠性与停止保证
 
@@ -504,6 +504,7 @@ Agent Loop ---> LLM Adapter ---> External Provider |
 - `approval.py`：持久审批、HMAC 完整性与一次性消费状态机。
 - `feedback.py`：验证结果分类、有界摘要与 evidence reference。
 - `memory.py`：记忆存储、脱敏与上下文选择。
+- `redaction.py`：模式与运行时已知 secret 的统一递归脱敏边界。
 - `config.py`：配置加载与校验。
 - `credentials.py`：OS keyring、隐藏输入与脱敏。
 - `cli.py`：命令行入口、审批命令与 resume。
@@ -818,6 +819,7 @@ docker run --rm -v "${PWD}\demo-config.json:/app/demo-config.json:ro" safecodelo
 | `FR-MEM-01` | 项目事实持久化并按相关性、优先级和预算进入上下文 | 相关记忆可检索；不相关项在预算不足时省略；疑似密钥脱敏 | `tests/test_memory.py`、`tests/test_context_memory.py` |
 | `FR-CFG-01` | 配置经校验后真实控制工具、治理和验证边界 | 非法正整数和未知值被拒绝；blocked pattern 与预算改变运行结果 | `tests/test_config.py` |
 | `NFR-SEC-01` | 生产凭据存入 OS keyring，隐藏录入且不回显 | status/set/clear 不泄露明文；生产 CLI 不静默降级到明文文件 | `tests/test_credentials.py` |
+| `NFR-SEC-02` | 模型、循环、CLI 与日志共用可注入的 Secret Redactor | bearer/API-key/token/password/`sk-` 模式及长度至少 8 的运行时已知 secret 在嵌套键值中替换为 `[REDACTED]`；正常短文本不误伤 | `tests/test_redaction.py`、`tests/test_llm.py`、`tests/test_loop.py`、`tests/test_cli_run.py` |
 | `NFR-OBS-01` | 每一步保存 action、治理、工具、feedback 和终态证据 | CLI 可生成结构化 run log，feedback evidence 可由 hash 与位置核对 | `tests/test_cli_run.py`、`tests/test_feedback_loop.py` |
 | `DEMO-A6-01` | 确定性展示危险动作执行前拦截 | 最终状态为 `blocked`，危险命令未执行 | `tests/test_demo_guardrail.py`、`demos/dangerous_action.json` |
 | `DEMO-A6-02` | 确定性展示失败反馈改变下一步动作 | 首次 validation 失败，修正后 pass，最终 success | `tests/test_demo_feedback.py`、`demos/feedback_correction.json` |
