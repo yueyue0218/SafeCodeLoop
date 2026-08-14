@@ -350,7 +350,7 @@ WebUI：
 
 | NFR ID | 可测量要求 | 验收方法 |
 |---|---|---|
-| `NFR-PERF-01` | 197 项离线测试不访问真实 LLM 或网络；在本项目 Windows/Python 3.11 基线中目标 30 秒内完成（当前 8.57 秒，195 passed、2 项 symlink 用例因 Windows 权限跳过） | 断网或不配置 key 后运行 `python -m pytest`，必须全部通过或仅平台能力用例明确跳过 |
+| `NFR-PERF-01` | 201 项离线测试不访问真实 LLM 或网络；在本项目 Windows/Python 3.11 基线中目标 30 秒内完成（当前 8.61 秒，199 passed、2 项 symlink 用例因 Windows 权限跳过） | 断网或不配置 key 后运行 `python -m pytest`，必须全部通过或仅平台能力用例明确跳过 |
 | `NFR-PERF-02` | 单次进入模型上下文的 validation details 默认不超过 1200 字符 | 长输出测试断言 `details` 长度、截断标志、原长度与 SHA-256 |
 | `NFR-PERF-03` | 默认单次 run 最多 5 个 agent steps、4 次 validations；相同失败连续 2 次打开熔断 | 加载默认 config，并通过 loop/config 单测验证终态 |
 | `NFR-PERF-04` | 本地命令默认 10 秒 timeout；真实 provider 请求默认 60 秒 timeout | command/LLM stub 测试断言 timeout 参数和结构化错误 |
@@ -673,6 +673,13 @@ Agent Loop ---> LLM Adapter ---> External Provider |
 - Docker 镜像或 Dockerfile。
 - 如果时间充足再做 WebUI。
 
+项目分发元数据：
+
+- 项目作者为曹潇月，项目代码采用 MIT License，完整文本位于 `LICENSE`。
+- `pyproject.toml` 使用 SPDX `MIT` 表达式，并通过 `license-files` 将 `LICENSE` 纳入 wheel 和 source distribution。
+- 直接运行依赖 `keyring`、构建后端 `setuptools`、构建工具 `build` 和测试工具 `pytest` 均为 MIT 许可；用途、上游声明链接和传递依赖边界记录在 `THIRD_PARTY_NOTICES.md`。
+- 本仓库中的 agent loop、action protocol、guardrail、feedback control、tools、memory 和 configuration 为本课程项目实现；AI 协作过程记录在 `AGENT_LOG.md` 与 `REFLECTION.md`，不将第三方依赖代码声明为本人原创。
+
 README 必须说明：
 
 - 如何安装。
@@ -703,9 +710,10 @@ python -m safecodeloop --version
 
 - Python 版本不低于 3.11；
 - 安装命令退出 0；
-- 全量结果为 `116 passed`；
+- 全量测试通过，或仅平台能力用例明确跳过；具体数量以当前提交的 CI 为准；
 - help 与 version 均退出 0，version 为 `0.1.0`；
 - 整个过程不要求配置真实 LLM key。
+- wheel 元数据包含 `License-Expression: MIT`、`License-File: LICENSE` 和作者曹潇月；sdist 包含 `LICENSE`、`README.md` 与 `THIRD_PARTY_NOTICES.md`。
 
 随后创建最小 demo config 并运行主要贡献演示：
 
@@ -824,7 +832,8 @@ docker run --rm -v "${PWD}\demo-config.json:/app/demo-config.json:ro" safecodelo
 | `DEMO-A6-01` | 确定性展示危险动作执行前拦截 | 最终状态为 `blocked`，危险命令未执行 | `tests/test_demo_guardrail.py`、`demos/dangerous_action.json` |
 | `DEMO-A6-02` | 确定性展示失败反馈改变下一步动作 | 首次 validation 失败，修正后 pass，最终 success | `tests/test_demo_feedback.py`、`demos/feedback_correction.json` |
 | `DEMO-MAIN-01` | 展示主要贡献“反馈控制面”的完整行为 | failure → feedback → correction → pass，并证明后续危险动作仍受治理 | `tests/test_demo_main_contribution.py`、`demos/governance_feedback_depth.json` |
-| `DIST-01` | CLI、release 与 Docker 提供可复现分发路径 | 最终 tag/asset 与提交 commit 对齐；source 路径 `116 passed`；镜像可运行 help/version 和 MockLLM 反馈演示 | §10.3、`.github/workflows/ci.yml`、`.gitlab-ci.yml`、`Dockerfile`、`RELEASE_CHECKLIST.md` |
+| `DIST-01` | CLI、release 与 Docker 提供可复现分发路径 | 最终 tag/asset 与提交 commit 对齐；当前提交的 source 测试通过；镜像可运行 help/version 和 MockLLM 反馈演示 | §10.3、`.github/workflows/ci.yml`、`.gitlab-ci.yml`、`Dockerfile`、`RELEASE_CHECKLIST.md` |
+| `DIST-02` | 项目许可证、作者与第三方依赖许可可审计并进入分发产物 | wheel 声明 MIT SPDX expression、LICENSE 和作者；sdist 包含项目与第三方声明文件 | `tests/test_packaging_metadata.py`、`LICENSE`、`THIRD_PARTY_NOTICES.md`、`pyproject.toml` |
 
 ## 14. 风险、已决策事项与剩余边界
 

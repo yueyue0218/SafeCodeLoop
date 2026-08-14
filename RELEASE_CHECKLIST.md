@@ -2,11 +2,14 @@
 
 ## Required Before Creating Release
 
-- [x] `python -m pytest` passes locally (`116 passed`).
+- [x] `python -m pytest` passes locally (`199 passed, 2 skipped`; symlink capability only).
 - [x] `.gitlab-ci.yml` contains a `unit-test` job that runs `python -m pytest`.
 - [x] GitHub Actions verifies tests, distributions, and isolated wheel installation.
 - [x] `Dockerfile` and `.dockerignore` are present.
 - [x] Docker image builds and CLI smoke tests pass in the container.
+- [x] `LICENSE` declares MIT with copyright holder 曹潇月.
+- [x] `pyproject.toml` declares the MIT SPDX expression, license file, author, README, classifiers, and project URLs.
+- [x] `THIRD_PARTY_NOTICES.md` records direct runtime, build, and test dependency licenses.
 - [x] `README.md` is complete.
 - [x] `REFLECTION.md` is reviewed and personalized by the project author.
 - [x] `submission.jsonc` is outside the source archive and filled with real student/repository/release values.
@@ -35,6 +38,10 @@ release\SHA256SUMS
 - `PLAN.md`
 - `SPEC_PROCESS.md`
 - `AGENT_LOG.md`
+- `README.md`
+- `LICENSE`
+- `THIRD_PARTY_NOTICES.md`
+- `MANIFEST.in`
 - `.gitlab-ci.yml`
 - `Dockerfile`
 - `.dockerignore`
@@ -57,6 +64,8 @@ release\SHA256SUMS
 - [x] Record Docker image build and container smoke results.
 - [x] Generate the final source archive from tracked files and record the source commit in `BUILD_INFO.txt`.
 - [x] Build the wheel and source distribution.
+- [x] Confirm the new wheel metadata contains `License-Expression: MIT`, `License-File: LICENSE`, and author 曹潇月.
+- [x] Confirm the new source distribution contains `LICENSE`, `README.md`, and `THIRD_PARTY_NOTICES.md`.
 - [x] Generate SHA-256 checksums for the zip, wheel, and source distribution.
 - [x] Install the wheel in a new virtual environment and run `--help` and `--version`.
 - [x] Point `v0.1.0` at the final `main` commit and attach all four artifacts to the GitHub Release.

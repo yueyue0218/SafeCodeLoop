@@ -58,7 +58,7 @@ python -m pytest
 Current local result:
 
 ```text
-195 passed, 2 skipped
+199 passed, 2 skipped
 ```
 
 ## CLI Usage
@@ -277,6 +277,19 @@ The packaging script refuses tracked-file changes, uses `git ls-files`, records 
 
 Public release: <https://github.com/yueyue0218/SafeCodeLoop/releases/tag/v0.1.0>
 
+## Author and License
+
+SafeCodeLoop is authored by 曹潇月 and released under the [MIT License](LICENSE).
+The project implements its agent loop, action protocol, guardrails, feedback
+control, tools, memory, and configuration in this repository; development use
+of AI assistance is documented in `AGENT_LOG.md` and `REFLECTION.md`.
+
+Direct runtime, build, and test dependency licenses are recorded in
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md): `keyring` provides runtime
+credential storage, `setuptools` is the build backend, `build` creates release
+artifacts, and `pytest` runs the test suite. Transitive dependency terms must be
+reviewed for the exact environment used when redistributing the project.
+
 ## Project Structure
 
 ```text
@@ -289,6 +302,8 @@ PLAN.md                 implementation plan
 SPEC_PROCESS.md         spec/process record
 AGENT_LOG.md            agent collaboration log
 RELEASE_CHECKLIST.md    release checklist
+LICENSE                 MIT license for SafeCodeLoop
+THIRD_PARTY_NOTICES.md  direct dependency license audit
 .gitlab-ci.yml          CI unit-test job
 .github/workflows/ci.yml GitHub test, build, and wheel smoke test
 Dockerfile              container distribution file

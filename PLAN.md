@@ -5,12 +5,12 @@
 ## 0. 当前执行基线（2026-08-14）
 
 - 发布准备提交 `5418cc2` 已通过 PR #8 合入 `main`；最终发布收口在 `release/v0.1.0-finalize` 分支完成。
-- 当前本地全量回归：`195 passed, 2 skipped`（symlink 用例在当前 Windows 权限下跳过）。
+- 当前本地全量回归：`199 passed, 2 skipped`（symlink 用例在当前 Windows 权限下跳过）。
 - Docker：`safecodeloop:0.1.0` 已成功构建；容器内 `--help`、`--version` 和完整 MockLLM 反馈演示通过。
 - 分发：GitHub Release `v0.1.0` 的 tag 与最终 `main` 提交对齐；Release 提供源码 ZIP、wheel、sdist 和 `SHA256SUMS`，并已按 SPEC §10.3 完成 wheel 干净环境安装与 CLI 冒烟。
 - 凭据：生产 CLI 使用 OS keyring；明文文件 backend 仅供测试显式注入。
 - 真实模型：OpenAI-compatible adapter 已实现；核心验收仍使用离线 MockLLM。
-- 本文各 task 中的较小测试数字是该 task 完成当时的历史回归结果；当前开发基线统一以上述 `195 passed, 2 skipped` 为准，`v0.1.0` Release 验收基线仍为 `116 passed`。
+- 本文各 task 中的较小测试数字是该 task 完成当时的历史回归结果；当前开发基线统一以上述 `199 passed, 2 skipped` 为准，`v0.1.0` Release 验收基线仍为 `116 passed`。
 
 ## 1. 锁定技术路线
 
@@ -64,7 +64,8 @@
 | v0.1.0 最终发布收口 | `release/v0.1.0-finalize` | `e45b431` | PR #9 / `6b8a714` | 打包脚本生成源码 ZIP、wheel、sdist、commit 记录与 SHA-256；公开 Release 替换为最终资产并执行干净安装 |
 | 严格 Action Schema | `feat/t10-action-schema` | `976a336` | PR #10 / `f775162` | 唯一 JSON action、严格字段/类型/大小上限、歧义 fail closed；全量 `132 passed` |
 | Guardrail 对抗强化 | `feat/t11-guardrail-hardening` | `af886c5` | PR #11 / `adc44aa` | 跨 shell 绕过矩阵、稳定规则元数据、配置接线和路径/敏感文件治理；全量 `176 passed, 2 skipped` |
-| 统一 Secret Redaction | `feat/t9-unified-secret-redaction` | 本分支提交 | 待创建 PR | 共享递归脱敏层覆盖模型、AgentLoop、CLI 和 run log；全量 `195 passed, 2 skipped` |
+| 统一 Secret Redaction | `feat/t9-unified-secret-redaction` | `8ddac8d` | PR #12 / `4788af6` | 共享递归脱敏层覆盖模型、AgentLoop、CLI 和 run log；全量 `195 passed, 2 skipped` |
+| 分发元数据与许可证 | `feat/t15-distribution-metadata` | 本分支提交 | 待创建 PR | MIT、作者曹潇月、PEP 639 元数据、直接依赖许可审计与构建产物验证 |
 
 ### 2.3 两阶段评审纪律
 
@@ -1268,6 +1269,36 @@ docker run --rm safecodeloop --help
 - 已填写学号、姓名、仓库链接、`is_deployed=false` 和真实 release 链接。
 
 依赖：T7.4。
+
+## 10. T15.2 分发元数据与许可证
+
+状态：本地实现与全部验收完成，待创建并合并 PR。
+
+目标：让源码、Python 包元数据和发布归档对项目作者、许可条款及第三方依赖边界给出一致、可机器校验的声明。
+
+TDD 与实现：
+
+- 先新增 `tests/test_packaging_metadata.py`；初次运行得到 `4 failed`，分别暴露 LICENSE、项目元数据、第三方声明和 manifest 缺失。
+- 添加标准 MIT `LICENSE`，copyright holder 为曹潇月。
+- `pyproject.toml` 使用 PEP 639 的 SPDX `license = "MIT"` 和 `license-files = ["LICENSE"]`，并声明作者、README、Python/平台 classifiers 与项目 URL。
+- 添加 `THIRD_PARTY_NOTICES.md`，审计 `keyring`、`setuptools`、`build`、`pytest` 的用途和 MIT 许可来源，同时明确传递依赖需按实际解析版本复核。
+- 添加 `MANIFEST.in`，显式纳入 `LICENSE`、`README.md` 和第三方声明。
+- README 说明作者、本人实现边界、AI 协作记录、项目许可证和依赖许可入口。
+
+验收：
+
+- `python -m pytest tests/test_packaging_metadata.py -q`：`4 passed`。
+- wheel metadata 必须包含 MIT License-Expression、LICENSE 文件引用和作者曹潇月。
+- sdist 必须包含 LICENSE、README 和 THIRD_PARTY_NOTICES。
+- 全量测试、构建、隔离安装与敏感信息扫描必须通过后才进入 PR。
+
+实际结果：
+
+- `python -m build --outdir .tmp-t15-build` 成功生成 wheel 与 sdist。
+- wheel metadata 为 Metadata-Version 2.4，包含 `Author: 曹潇月`、`License-Expression: MIT` 和 `License-File: LICENSE`。
+- sdist 包含 `LICENSE`、`README.md`、`THIRD_PARTY_NOTICES.md` 和 `MANIFEST.in`。
+- 全新虚拟环境从 wheel 安装成功，`safecodeloop --help` 和 `--version` 退出 0。
+- 全量回归：`199 passed, 2 skipped in 8.61s`；跳过项仍仅为当前 Windows 账户不能创建 symlink。
 
 ## 11. 最终提交清单
 
