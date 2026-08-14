@@ -1117,3 +1117,23 @@ TDD 与设计判断：
 - 我追加风险动作回归，确认惰性初始化没有让审批流程绕过 keyring。
 - 第二次容器 demo 触发重复环境失败熔断，定位为镜像缺少 pytest；我将 pytest 纳入演示镜像，使其可以独立复现反馈闭环。
 - 最终全量回归 `116 passed`；镜像 `safecodeloop:0.1.0` 构建成功；容器内 `--help`、`--version`、完整 mock 反馈演示和排除 `.git`、release、本地审批目录及内部计划的边界检查全部通过。
+
+## 2026-08-14 18:00 · T7.3/T7.4 · v0.1.0 最终发布收口
+
+### 目标与人工决策
+
+- 远程检查发现 Release 页面虽然存在，但旧 `v0.1.0` tag 仍指向 `5374bb5`，早于已经合并的发布准备提交；旧 Release 也只有源码 ZIP。
+- 我决定保留已有版本号和公开 URL，更新 tag 指向最终 `main`，并用可追溯的 ZIP、wheel、sdist 和 `SHA256SUMS` 替换旧资产。
+- 现有未提交的 PLAN/SPEC/SPEC_PROCESS 深度修订被完整保留到 `release/v0.1.0-finalize`，没有覆盖或丢弃。
+
+### 实现与失败证据
+
+- 发布脚本扩展为一次生成四类资产，并在源码 ZIP 中写入 `BUILD_INFO.txt` 的版本和 commit；检测到已跟踪文件未提交时安全失败。
+- 第一次完全断网安装 wheel 失败，因为 wheel 正确声明了外部依赖 `keyring>=25,<26`，而临时目录没有依赖缓存。这一失败被归类为分发环境条件，不伪装成 wheel 自包含。
+- 随后在全新虚拟环境按正常 PyPI 安装路径安装 wheel，`safecodeloop --help` 和 `--version` 均通过。
+
+### 最终验证
+
+- `python -m pytest`：`116 passed`。
+- `scripts/package_release.ps1`：生成源码 ZIP、wheel、sdist 和 SHA-256 manifest。
+- 公开 `v0.1.0` tag 与最终 `main` 提交一致，Release 四个资产可公开访问并通过校验。

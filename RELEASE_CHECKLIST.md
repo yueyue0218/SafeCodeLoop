@@ -21,6 +21,9 @@ Expected output:
 
 ```text
 release\SafeCodeLoop-0.1.0.zip
+release\safecodeloop-0.1.0-py3-none-any.whl
+release\safecodeloop-0.1.0.tar.gz
+release\SHA256SUMS
 ```
 
 ## Archive Must Include
@@ -49,10 +52,12 @@ release\SafeCodeLoop-0.1.0.zip
 - local run logs
 - real API keys or credentials
 
-## Remaining Release Actions
+## Final Release Verification
 
 - [x] Record Docker image build and container smoke results.
-- [ ] Generate the final source archive from tracked files.
-- [ ] Generate SHA-256 checksums for the zip, wheel, and source distribution.
-- [ ] Create the GitHub Release and attach all artifacts.
-- [ ] Verify the public Release URL in a signed-out browser.
+- [x] Generate the final source archive from tracked files and record the source commit in `BUILD_INFO.txt`.
+- [x] Build the wheel and source distribution.
+- [x] Generate SHA-256 checksums for the zip, wheel, and source distribution.
+- [x] Install the wheel in a new virtual environment and run `--help` and `--version`.
+- [x] Point `v0.1.0` at the final `main` commit and attach all four artifacts to the GitHub Release.
+- [x] Verify the public Release URL without relying on a repository checkout.

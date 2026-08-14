@@ -246,19 +246,24 @@ The release image includes `pytest` so the feedback demo runs without extra inst
 
 ## Release Package
 
-Generate a source release archive:
+Generate the source archive, wheel, source distribution, and SHA-256 manifest from a clean commit:
 
 ```powershell
 .\scripts\package_release.ps1
 ```
 
-Output:
+Outputs:
 
 ```text
 release\SafeCodeLoop-0.1.0.zip
+release\safecodeloop-0.1.0-py3-none-any.whl
+release\safecodeloop-0.1.0.tar.gz
+release\SHA256SUMS
 ```
 
-The packaging script uses `git ls-files`, so only tracked project files are included. It also checks that the archive does not contain `.git`, `.env`, `.safecodeloop`, cache files, `.pyc`, or logs.
+The packaging script refuses tracked-file changes, uses `git ls-files`, records the source commit in `BUILD_INFO.txt`, and checks that the archive does not contain `.git`, `.env`, `.safecodeloop`, cache files, `.pyc`, or logs. Verify downloads against `SHA256SUMS` before installation. Installing the wheel normally requires network access for its `keyring` dependency unless that dependency is already cached.
+
+Public release: <https://github.com/yueyue0218/SafeCodeLoop/releases/tag/v0.1.0>
 
 ## Project Structure
 
@@ -285,6 +290,5 @@ SafeCodeLoop is a teaching harness, not a production sandbox. It uses determinis
 
 - Core tests and deterministic demos use `MockLLM`; real-provider runs require network access, a configured key, and an available compatible model.
 - A usable OS keyring backend must be available on the target system.
-- Docker build is pending until Docker Desktop is installed.
 - WebUI is intentionally not implemented; this follows the CLI-only plus release-link route allowed for Agent Harness submissions.
-- Release URL is created in T7.4 and should be filled after publishing a real GitHub/NJU Git release.
+- Python wheel installation requires access to the declared `keyring` dependency unless it is already available locally.

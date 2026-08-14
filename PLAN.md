@@ -2,6 +2,16 @@
 
 > 交付路线：CLI-only + release 链接。WebUI 是可选项，不进入 P0。
 
+## 0. 当前执行基线（2026-08-14）
+
+- 发布准备提交 `5418cc2` 已通过 PR #8 合入 `main`；最终发布收口在 `release/v0.1.0-finalize` 分支完成。
+- 当前本地全量回归：`116 passed`。
+- Docker：`safecodeloop:0.1.0` 已成功构建；容器内 `--help`、`--version` 和完整 MockLLM 反馈演示通过。
+- 分发：GitHub Release `v0.1.0` 的 tag 与最终 `main` 提交对齐；Release 提供源码 ZIP、wheel、sdist 和 `SHA256SUMS`，并已按 SPEC §10.3 完成 wheel 干净环境安装与 CLI 冒烟。
+- 凭据：生产 CLI 使用 OS keyring；明文文件 backend 仅供测试显式注入。
+- 真实模型：OpenAI-compatible adapter 已实现；核心验收仍使用离线 MockLLM。
+- 本文各 task 中的较小测试数字是该 task 完成当时的历史回归结果；最终基线统一以上述 `116 passed` 为准。
+
 ## 1. 锁定技术路线
 
 - 语言：Python 3.11+
@@ -13,11 +23,13 @@
 - 版本号唯一来源：`src/safecodeloop/__init__.py` 的 `__version__`
 - 模块执行方式：同时支持 `python -m safecodeloop.cli` 和 `python -m safecodeloop`
 - 分发：Dockerfile + GitHub/NJU Git release
-- LLM：mock LLM 必做，真实 LLM adapter 可选
+- LLM：MockLLM 用于确定性核心验收；OpenAI-compatible adapter 已实现
 - 一键测试命令：`python -m pytest`
 - CI：`.gitlab-ci.yml`，必须包含 `unit-test` job
 
 ## 2. 分支 / Worktree / PR 策略
+
+### 2.1 初始规划
 
 - `feature/spec-plan-process`：只放规约、计划和过程文档。
 - `feature/core-loop`：LLM 抽象、action parser、主循环。
@@ -32,6 +44,120 @@
 - 人工改了什么。
 - 跑了哪些测试。
 - 是否符合 SPEC / PLAN。
+
+上述列表是 brainstorming 阶段的初始分组。实际执行中，早期 T2—T8 基础能力采用连续的小提交推进；安全与反馈深度增强阶段改用独立 feature branch + PR。二者的差异属于真实过程记录，不将早期线性提交追写成不存在的 PR。
+
+### 2.2 实际提交与 PR 映射
+
+| 执行范围 | 实际分支 / worktree | 关键提交 | PR / 合并提交 | 验证与说明 |
+|---|---|---|---|---|
+| T2—T5 基础 harness：parser、MockLLM、loop、tools、guardrail、feedback、memory、config | 早期主线连续提交 | `85c0088`—`b1be3fc` | 无独立 PR | 每项先红后绿并全量回归；这是相对初始“每模块一个 PR”策略的流程偏离，详细人工干预记录在 `AGENT_LOG.md` |
+| T6 demos、T7 初版分发、T8 文档 | 早期主线连续提交 | `f9643b5`—`0a1a9ce` | 无独立 PR | 三个 demo 均有 pytest 断言；Docker 早期环境限制与 release 状态分别记录，未伪造当时结果 |
+| 安全凭据存储 | `feat/secure-credential-storage` | `8653bb8` | PR #1 / `2a43b07` | OS keyring、隐藏输入、无生产明文 fallback；凭据专项与全量回归通过 |
+| GitHub CI 与 wheel smoke | `ci/github-actions` | `c4d27f9` | PR #2 / `cbe6014` | PR/push 自动测试、构建 wheel、隔离环境安装与 CLI smoke |
+| 真实 LLM adapter | `feat/openai-compatible-provider` | `a7094f7`、`525bedf`、`5b9d906` | PR #3 / `3ec8151` | 真实 provider 只替换单次决策组件；全量 `87 passed`，CI runtime warning 修正 |
+| 可恢复 HITL | `feat/resumable-approvals` | `ec842e9`、`9192833` | PR #4 / `551b87a` | HMAC、一次消费、跨进程 resume、Linux CI 测试隔离；全量 `97 passed` |
+| 显式 validation | `feat/t12-validation-loop` | `22475a0` | PR #5 / `8ba4147` | 普通命令与客观验证分离；validation 仍走 guardrail；全量 `100 passed` |
+| 分类与有界反馈 | `feat/t12-feedback-classification` | `007643c` | PR #6 / `3300cc5` | 八类反馈、1200 字符摘要、hash/reference；全量 `106 passed` |
+| 完成门槛与停止控制 | `feat/t12-validation-controls` | `20fde80` | PR #7 / `b140ea4` | 写入/失败后拒绝假成功、预算、熔断、resume 同规则；全量 `114 passed` |
+| v0.1.0 干净环境验证 | `release/v0.1.0-prep` | `5418cc2` | PR #8 / `e11b0b9` | Docker build/run、惰性审批存储、演示镜像 pytest；本地最终 `116 passed` |
+| v0.1.0 最终发布收口 | `release/v0.1.0-finalize` | 由 `v0.1.0` tag 追溯 | 最终发布 PR | 打包脚本生成源码 ZIP、wheel、sdist、commit 记录与 SHA-256；公开 Release 替换为最终资产并执行干净安装 |
+
+### 2.3 两阶段评审纪律
+
+每个增强 PR 在合并前依次进行：
+
+1. **SPEC 合规检查**：确认是否实现关联机制、是否违反自研 harness 边界、是否产生绕过路径、是否超出 task 范围；
+2. **代码质量检查**：检查安全失败、错误分类、凭据泄露、重复逻辑、跨平台行为、测试隔离和全量回归。
+
+Critical issue 必须在同一 PR 中修复并重新验证后才能合并。以下是可由提交与 `AGENT_LOG.md` 复核的评审处置：
+
+| PR | SPEC 合规检查及处置 | 代码质量检查及处置 | 结论 |
+|---|---|---|---|
+| #1 安全凭据 | 发现生产默认明文 JSON 不满足凭据安全要求，改为 OS keyring 和隐藏输入 | 移除 `--value` 明文参数与生产文件 fallback，避免 shell history/进程参数泄露 | 修正后通过；PR #1 本身无 GitHub checks，随后以 PR #2 补齐托管平台 CI |
+| #2 GitHub CI | 发现只有 `.gitlab-ci.yml`，GitHub PR 无自动检查，新增 GitHub workflow | 增加 wheel 构建和隔离安装 smoke，避免 editable install 掩盖打包遗漏 | 通过 |
+| #3 Provider | 确认 adapter 只负责单次 LLM 调用，不替代 loop、parser、tools、guardrail、feedback | 稳定分类鉴权/限流/超时/响应错误并保持 secret redaction；修复 Actions runtime warning | 修正后通过 |
+| #4 HITL | 发现 `needs_approval` 只能停止、不能恢复，补齐 pending → decide → resume 状态机 | 普通 SHA-256 无法防同时篡改 action/hash，升级 HMAC；修复 Linux CI 对宿主 keyring 的隐式依赖 | 修正后通过 |
+| #5 Validation | 发现所有命令都被当作客观验证，新增显式 `run_validation` | 复用 command executor，确认 validation 同样经过 guardrail，不复制 shell 路径 | 通过 |
+| #6 Feedback | 对照 SPEC 补齐 type/lint/environment/unknown 分类和有界上下文 | 完整 evidence 留日志，摘要携带原长度、SHA-256 与位置，避免不可审计截断 | 通过 |
+| #7 Controls | 发现写入后或失败后可直接 `finish`，增加完成门槛、预算和熔断 | 复审发现 approval resume 可绕过门槛；先加红灯测试，再让恢复路径复用同一状态机 | 修正后通过 |
+
+早期线性提交虽然没有独立 PR，但每个 task 的红灯、绿灯、人工修正和回归结果均保留在 `AGENT_LOG.md`。这一偏离不补造流程证据，而作为“初始 worktree/PR 规划执行不足、后期通过七个正式 PR 改进”的过程反思保留。
+
+### 2.4 Subagent 微步骤执行索引
+
+下面把原本以模块命名的大 task 拆成可由 subagent 顺序执行的微步骤。每个 `Sx` 只包含一个可观察动作，预期耗时 2—5 分钟；若一步需要扩大公开接口、修改范围外文件或无法在一个短周期内得到预期红/绿结果，subagent 必须暂停并报告，不能自行扩大任务。
+
+所有实现 task 在完成专属微步骤后，统一执行以下收尾门禁，每项同样视为一个独立微步骤：
+
+1. `G1`：运行该 task 的专项 pytest，保存完整结果；
+2. `G2`：运行 `python -m pytest`，确认没有回归；
+3. `G3`：执行 SPEC 合规检查，逐条核对关联需求和范围外约束；
+4. `G4`：执行代码质量检查，检查错误路径、secret、重复逻辑、测试隔离和跨平台行为；
+5. `G5`：根据评审意见做最小修正，并重新执行受影响测试；
+6. `G6`：更新 `PLAN.md` 状态、`AGENT_LOG.md` 红/绿证据及 commit/PR 信息；
+7. `G7`：只暂存 task 涉及文件并创建语义明确的提交。
+
+#### Phase 1：规约与冷启动
+
+| Task | 2—5 分钟专属微步骤 |
+|---|---|
+| `T1.1 SPEC` | `S1` 按通用要求十项建立章节清单；`S2` 补 A 类领域与机制章节；`S3` 将范围内/外逐项分类；`S4` 为用户故事写客观验收；`S5` 检查凭据威胁模型与分发路径；`S6` 执行要求覆盖审阅 |
+| `T1.2 PLAN` | `S1` 从 SPEC 提取稳定需求；`S2` 按依赖排序 phase；`S3` 为每个 task 填文件路径；`S4` 为每个 task 写预期红灯；`S5` 写专项与全量验证命令；`S6` 标记依赖和可并行组 |
+| `T1.3 PROCESS` | `S1` 选取一次关键追问；`S2` 写对应对话节选；`S3` 写人工采纳/推翻决定；`S4` 记录 SPEC/PLAN 前后变化；`S5` 重复至至少三轮；`S6` 单列 brainstorming 优点与不满 |
+| `T1.4 冷启动` | `S1` 创建无历史的新 agent session；`S2` 只提供 SPEC/PLAN；`S3` 指定 T2.1/T2.2；`S4` 记录第一个暂停问题；`S5` 判断是文档缺陷还是误读；`S6` 修订一处歧义；`S7` 用同样输入重新检查 |
+
+#### Phase 2—3：骨架、协议与主循环
+
+| Task | 2—5 分钟专属微步骤 |
+|---|---|
+| `T2.1 包结构` | `S1` 添加 import smoke 红灯；`S2` 运行并确认 `ModuleNotFoundError`；`S3` 创建 `src/safecodeloop/__init__.py`；`S4` 写唯一 `__version__`；`S5` 配置 setuptools package discovery |
+| `T2.2 CLI 入口` | `S1` 添加 help 红灯；`S2` 添加 version 红灯；`S3` 实现共享 `main()`；`S4` 注册 console script；`S5` 添加 `__main__.py` 转发；`S6` 分别验证三种入口 |
+| `T3.1 Action Parser` | `S1` 添加合法 action 红灯；`S2` 添加非法 JSON 红灯；`S3` 添加未知类型红灯；`S4` 添加缺失字段红灯；`S5` 定义 `Action` 数据结构；`S6` 实现最小 schema 校验；`S7` 确认 parser 不执行工具 |
+| `T3.2 LLM/MockLLM` | `S1` 写接口替换红灯；`S2` 写脚本顺序红灯；`S3` 写耗尽错误红灯；`S4` 实现 LLM protocol；`S5` 实现 MockLLM 队列；`S6` 记录输入 context；`S7` 验证脱敏 |
+| `T3.3 AgentLoop` | `S1` 写 finish 红灯；`S2` 写 parse-error observation 红灯；`S3` 写 max-steps 红灯；`S4` 实现单步 LLM 调用；`S5` 接入 parser；`S6` 实现固定终态；`S7` 验证每步索引和 observation |
+
+#### Phase 4：工具与治理
+
+| Task | 2—5 分钟专属微步骤 |
+|---|---|
+| `T4.1 Tool Registry` | `S1` 写未注册工具红灯；`S2` 写成功 dispatch 红灯；`S3` 定义 `ToolResult`；`S4` 实现 register/dispatch；`S5` 将工具异常转换为结构化失败 |
+| `T4.2 文件工具` | `S1` 写 list 红灯；`S2` 写 read 红灯；`S3` 写 write 红灯；`S4` 写 `../` 越界红灯；`S5` 实现 canonical path；`S6` 实现 containment check；`S7` 注册三个文件工具 |
+| `T4.3 命令工具` | `S1` 写 stdout/exit-code 红灯；`S2` 写 stderr 红灯；`S3` 写 timeout 红灯；`S4` 实现 workspace cwd；`S5` 实现 subprocess capture；`S6` 把非零退出转成 `ToolResult`；`S7` 把 timeout 转成结构化结果 |
+| `T4.4 Guardrail` | `S1` 写递归删除红灯；`S2` 写数据库删除红灯；`S3` 写 dependency approval 红灯；`S4` 写安全 action allow 红灯；`S5` 定义三态 decision；`S6` 实现内置规则；`S7` 实现可配置规则 |
+| `T4.5 Loop 集成` | `S1` 写 blocked 不调用 executor 红灯；`S2` 写 allow 调用工具红灯；`S3` 写 approval 暂停红灯；`S4` 注入 registry；`S5` 注入 guardrail；`S6` 固定 parse→guardrail→dispatch 顺序；`S7` 记录 decision 和 tool observation |
+| `T4.6 可恢复审批` | `S1` 写 pending 持久化红灯；`S2` 写 approve/reject 红灯；`S3` 写换参/篡改红灯；`S4` 写重复消费红灯；`S5` 实现 canonical action；`S6` 加入 HMAC；`S7` 实现一次消费；`S8` 接入 CLI resume；`S9` 验证跨进程链路 |
+
+#### Phase 5 与 T12：反馈、记忆、配置、凭据
+
+| Task | 2—5 分钟专属微步骤 |
+|---|---|
+| `T5.1 Feedback` | `S1` 写 pass 分类红灯；`S2` 写 test/syntax/timeout 红灯；`S3` 定义 Feedback；`S4` 实现分类顺序；`S5` 实现 observation；`S6` 添加 type/lint/environment/unknown 表驱动用例 |
+| `T5.2 回灌` | `S1` 写“失败进入下一次 context”红灯；`S2` 写“第二次验证通过”红灯；`S3` 注入 Validator；`S4` 把 feedback 转 observation；`S5` 将 observation 交给下一次 MockLLM；`S6` 断言动作确实改变 |
+| `T5.3 Memory` | `S1` 写持久化红灯；`S2` 写 priority/recency 红灯；`S3` 写 secret 红灯；`S4` 定义 MemoryItem；`S5` 实现 JSON load/save；`S6` 实现检索评分；`S7` 实现脱敏 |
+| `T5.4 Context Memory` | `S1` 写相关 memory 进入 context 红灯；`S2` 写预算淘汰红灯；`S3` 注入 MemoryStore；`S4` 构造相关性 query；`S5` 限制返回条数；`S6` 断言不相关内容不进入 context |
+| `T5.5 Config` | `S1` 写默认值红灯；`S2` 写非法整数红灯；`S3` 写未知字段红灯；`S4` 定义 dataclass；`S5` 实现字段映射；`S6` 实现完整校验；`S7` 证明配置改变 guardrail/预算 |
+| `T5.6 Credential` | `S1` 写 status 不泄密红灯；`S2` 写 set/clear 红灯；`S3` 写无 keyring 安全失败红灯；`S4` 定义 backend 接口；`S5` 实现 OS keyring；`S6` CLI 使用 hidden input；`S7` 移除明文 CLI 参数；`S8` 测试显式注入临时 backend |
+| `T12.1 显式验证` | `S1` 写 parser 不识别 `run_validation` 红灯；`S2` 写普通命令不产生 feedback 红灯；`S3` 注册 validation tool；`S4` 复用 command executor；`S5` 接入 feedback；`S6` 验证同样经过 guardrail |
+| `T12.2 有界反馈` | `S1` 为四类缺失分类写表驱动红灯；`S2` 写超长输出红灯；`S3` 实现 1200 字符上限；`S4` 优先保留诊断行；`S5` 添加原长度；`S6` 添加 SHA-256；`S7` 添加 run-log reference |
+| `T12.3 完成控制` | `S1` 写失败后 finish 红灯；`S2` 写代码写入后 finish 红灯；`S3` 写 validation budget 红灯；`S4` 写重复失败红灯；`S5` 实现 dirty/validated 状态；`S6` 实现 completion rejected；`S7` 实现预算与熔断；`S8` 为 resume 绕过补红灯；`S9` 让 resume 复用同一状态机 |
+
+#### Phase 6—8：CLI、演示、分发与文档
+
+| Task | 2—5 分钟专属微步骤 |
+|---|---|
+| `T6.1 run CLI` | `S1` 写成功退出码红灯；`S2` 写非成功终态退出码红灯；`S3` 写 run-log 红灯；`S4` 添加参数；`S5` 组装 config/loop/tools；`S6` 输出稳定 status；`S7` 序列化步骤日志 |
+| `T6.2 Guardrail Demo` | `S1` 写 demo 文件缺失红灯；`S2` 编写危险 action script；`S3` 运行 CLI；`S4` 断言 blocked；`S5` 断言危险命令未执行 |
+| `T6.3 Feedback Demo` | `S1` 写缺失 demo 红灯；`S2` 写错误实现 action；`S3` 写第一次 validation；`S4` 写修正 action；`S5` 写第二次 validation；`S6` 写 finish；`S7` 断言 failure→pass→success |
+| `T6.4 Main Demo` | `S1` 复用完整反馈链；`S2` 在 pass 后追加危险 action；`S3` 运行组合 demo；`S4` 断言 test_failure；`S5` 断言 pass；`S6` 断言最终 blocked 且未执行危险命令 |
+| `T7.1 CI` | `S1` 写 `unit-test` job；`S2` 安装 package/pytest；`S3` 运行全量测试；`S4` 添加 wheel build；`S5` 隔离安装 wheel；`S6` 运行 CLI smoke；`S7` 观察远程结果并修正 runtime warning |
+| `T7.2 Docker` | `S1` 写最小 Dockerfile；`S2` 写 `.dockerignore`；`S3` build image；`S4` 运行 help；`S5` 运行 version；`S6` 运行 feedback demo；`S7` 检查 image 排除项；`S8` 根据容器缺依赖红灯修正镜像 |
+| `T7.3/7.4 Release` | `S1` 以 `git ls-files` 收集输入；`S2` 排除 secret/cache/log；`S3` 生成 zip；`S4` 检查归档成员；`S5` 创建 release；`S6` 上传 asset；`S7` 打开 URL 验证；`S8` 更新 submission metadata |
+| `T8.1 README` | `S1` 写安装；`S2` 写三个 demo；`S3` 写 key 流程；`S4` 写 Docker/release；`S5` 写安全边界；`S6` 按命令从零复现并修正文档 |
+| `T8.2 AGENT_LOG` | `S1` 补时间/task；`S2` 补 skill/context；`S3` 补红绿证据；`S4` 补人工修正；`S5` 补 commit/PR；`S6` 对照 PLAN 检查遗漏 |
+| `T8.3 REFLECTION` | `S1` 列十个必答问题；`S2` 为每题选真实案例；`S3` 写 TDD 判断；`S4` 写 subagent/task 粒度；`S5` 写方法论批判；`S6` 检查 1500—2500 字和事实一致性 |
+
+此索引描述的是可重复的派发粒度；各 task 后文保留原始红灯、绿灯和历史回归结果，用于证明这些微步骤在实际执行中的落地情况。
 
 ## 3. Phase 1：实现前文档
 
@@ -69,7 +195,7 @@
 
 依赖：T1.1。
 
-状态：进行中。
+状态：已完成并持续维护；最终执行基线见第 0 节。
 
 ### T1.3 完成 `SPEC_PROCESS.md`
 
@@ -87,7 +213,7 @@
 
 依赖：T1.1、T1.2。
 
-状态：已完成初版。
+状态：已完成；2026-08-14 已按 brainstorming 评分要求完成深度重写。
 
 ### T1.4 冷启动验证
 
@@ -113,7 +239,14 @@
 
 依赖：T1.3。
 
-状态：待做。
+状态：已完成。
+
+实际验证：
+
+- 使用与主开发智能体不同的 Gemini，仅提供 `SPEC.md` 与 `PLAN.md`，尝试 T2.1/T2.2。
+- 冷启动验证暴露构建后端、版本号唯一来源、console script 名称和 `python -m safecodeloop` 入口四处歧义。
+- 据此锁定 `setuptools`、`src/safecodeloop/__init__.py::__version__`、`safecodeloop` 命令和 `__main__.py`，并把入口行为写入测试。
+- 完整对话节选、处理决策与修订影响记录在 `SPEC_PROCESS.md` 第 3.6 节和第 6 节。
 
 ## 4. Phase 2：项目骨架与测试框架
 
@@ -842,7 +975,7 @@ python -m pytest tests/test_demo_main_contribution.py
 
 ### T7.1 添加 `.gitlab-ci.yml`
 
-状态：已完成本地配置；远程 CI pass 待平台运行确认。
+状态：已完成；本地回归通过，GitHub Actions 的测试、构建与 wheel smoke 流程已在 PR 中通过；`.gitlab-ci.yml` 保留课程要求的 `unit-test` job。
 
 目标：满足课程 CI 要求。
 
@@ -867,6 +1000,7 @@ python -m pytest
 - CI job 使用 `python:3.11` 镜像。
 - CI 安装当前包和 pytest 后执行 `python -m pytest`。
 - 本地回归：`python -m pytest` 结果为 `72 passed`。
+- 上述 `72 passed` 是 T7.1 初次完成时的历史结果；最终全量回归为 `116 passed`。
 
 GitHub 托管适配：
 
@@ -881,7 +1015,7 @@ GitHub 托管适配：
 
 ### T7.2 添加 Dockerfile
 
-状态：已完成文件；Docker CLI 已验证，容器 build 因 Docker Hub 网络不可达待重试。
+状态：已完成并在干净容器环境验证。
 
 目标：提供可分发容器构建方式。
 
@@ -903,14 +1037,20 @@ docker run --rm safecodeloop --help
 - 新增 `.dockerignore`，排除 `.git`、缓存、虚拟环境、`.env`、本地 `.safecodeloop` 和 release 产物。
 - 本地回归：`python -m pytest` 结果为 `72 passed`。
 - Docker CLI 可用：Docker version 29.7.2。
-- `docker build -t safecodeloop .` 已执行到拉取基础镜像阶段。
-- build 未完成原因：当前网络无法连接 Docker Hub `auth.docker.io` / `registry-1.docker.io:443`，未声称容器 build 已通过。
+- 早期构建曾因 Docker Hub 代理配置不适合宿主机进程而失败；调整 Docker Desktop HTTP/HTTPS 代理后成功拉取基础镜像。
+- `docker build --tag safecodeloop:0.1.0 .` 已成功完成。
+- 容器内 `--help`、`--version` 和 failure → correction → pass 的 MockLLM 演示均通过。
+- 干净环境验证发现并修复两个问题：普通安全任务过早初始化 OS keyring，以及镜像缺少运行反馈 demo 所需的 pytest。
+- 镜像内容检查确认排除 `.git`、release 目录、本地审批状态和仓库外的 `SAFE_CODE_LOOP_HIGH_SCORE_EXECUTION_PLAN.md`；课程要求的 `PLAN.md` 保留在镜像中。
+- 最终本地全量回归：`116 passed`。
 
 依赖：T2.2。
 
 可并行：是。
 
 ### T7.3 准备 Release 包
+
+状态：已完成最终打包与校验。
 
 目标：生成可上传 release 的源码 / 构建产物。
 
@@ -930,13 +1070,20 @@ docker run --rm safecodeloop --help
 .\scripts\package_release.ps1
 ```
 
+实际验证：
+
+- 最终打包脚本从干净提交生成 `SafeCodeLoop-0.1.0.zip`、wheel、sdist 和 `SHA256SUMS`。
+- 打包输入来自 `git ls-files`，避免将未跟踪的本地文件混入产物。
+- 归档边界检查排除 `.git`、`.env`、`.safecodeloop`、缓存、`.pyc` 和运行日志。
+- 源码 ZIP 内的 `BUILD_INFO.txt` 记录版本和构建提交，可与 `v0.1.0` tag 交叉核对。
+
 依赖：T7.2、T8.1。
 
 可并行：否。
 
 ### T7.4 创建仓库 Release
 
-状态：已完成。
+状态：已完成；最终 tag、提交和四个公开资产一致。
 
 目标：生成 `submission.jsonc` 需要填写的 release 链接。
 
@@ -958,8 +1105,9 @@ docker run --rm safecodeloop --help
 实际验证：
 
 - GitHub Release 已创建：`https://github.com/yueyue0218/SafeCodeLoop/releases/tag/v0.1.0`。
-- release asset 上传 `SafeCodeLoop-0.1.0.zip`。
+- release assets 包含 `SafeCodeLoop-0.1.0.zip`、wheel、sdist 和 `SHA256SUMS`。
 - `submission.jsonc` 已填写真实 release 链接。
+- `v0.1.0` tag 指向包含最终文档和发布脚本的 `main` 提交；wheel 已在新建虚拟环境中安装并通过 `--help`、`--version`。
 
 依赖：T7.3。
 
@@ -1001,7 +1149,7 @@ docker run --rm safecodeloop --help
 - 覆盖项目简介、安装、CLI 使用、三个 mock demo、测试命令、Docker build/run、key 配置风险、安全边界、目录结构、release 包和已知限制。
 - 本地验证 `python -m pytest`：`72 passed`。
 - 本地验证 `python -m safecodeloop --help` 和 `safecodeloop --help` 均可用。
-- README 如实记录 Docker CLI 已验证可用，但 Docker Hub 网络不可达导致 build 未完成。
+- README 已更新为最终验证状态：Docker image 构建成功，容器内 CLI 与完整 MockLLM 反馈演示通过。
 
 依赖：T6.1、T7.2。
 
@@ -1116,6 +1264,7 @@ docker run --rm safecodeloop --help
 - [x] Dockerfile 或等价分发产物
 - [x] 本地单元测试 pass 记录
 - [x] GitHub/NJU Git 仓库链接
-- [x] release 链接
+- [x] release 链接已创建
+- [x] 最终 tag、release asset 与最终提交 commit 对齐，并按 SPEC §10.3 在干净环境复验
 - [x] `submission.jsonc` 与源码压缩包并列提交
 - [x] 仓库和压缩包内无真实凭据

@@ -348,42 +348,74 @@ WebUI：
 
 ### 6.1 性能
 
-- mock LLM 测试应能快速在 CI 中完成。
-- 默认最大步数防止长时间运行。
-- 默认不读取超大文件。
+| NFR ID | 可测量要求 | 验收方法 |
+|---|---|---|
+| `NFR-PERF-01` | 116 项离线测试不访问真实 LLM 或网络；在本项目 Windows/Python 3.11 基线中目标 30 秒内完成（当前 7.57 秒） | 断网或不配置 key 后运行 `python -m pytest`，必须全部通过 |
+| `NFR-PERF-02` | 单次进入模型上下文的 validation details 默认不超过 1200 字符 | 长输出测试断言 `details` 长度、截断标志、原长度与 SHA-256 |
+| `NFR-PERF-03` | 默认单次 run 最多 5 个 agent steps、4 次 validations；相同失败连续 2 次打开熔断 | 加载默认 config，并通过 loop/config 单测验证终态 |
+| `NFR-PERF-04` | 本地命令默认 10 秒 timeout；真实 provider 请求默认 60 秒 timeout | command/LLM stub 测试断言 timeout 参数和结构化错误 |
+| `NFR-PERF-05` | Memory 默认每次检索最多 5 条候选记录，并支持调用方进一步降低 limit | memory 单测断言 limit、优先级与相关性排序 |
 
 ### 6.2 安全
 
-威胁模型：
+#### 6.2.1 安全目标与信任假设
 
-- LLM 提出危险命令。
-- LLM 尝试访问工作区外文件。
-- 用户误提交 API key。
-- 日志泄露密钥。
-- 任务 prompt 中包含诱导绕过规则的内容。
+需要保护的资产包括：宿主机与工作区完整性、API key 和审批签名 key、审批状态完整性、验证证据真实性，以及 agent loop 的可用性。
 
-对策：
+SafeCodeLoop 采用以下信任假设：
 
-- 工具执行前做确定性 guardrail 检查。
-- 路径规范化与工作区边界检查。
-- 日志中做 secret redaction。
-- key 不进入源码。
-- 测试使用 mock LLM。
-- README 说明 `.env` 明文风险。
+- 本地操作者和操作系统凭据库属于可信计算基；LLM 响应、任务文本、仓库文件内容和审批记录文件均按不可信输入处理。
+- MockLLM 只消除网络和模型随机性，不自动获得工具权限；其 action 与真实模型 action 经过完全相同的 parser、guardrail 和 dispatcher。
+- Workspace 边界限制文件工具的访问范围，但 SafeCodeLoop 不是操作系统级沙箱；允许执行的 shell 命令仍可能产生 guardrail 规则无法枚举的副作用。
+- OS keyring 不可用或审批记录完整性无法验证时，相关操作安全失败，不自动降低到明文存储或无签名执行。
+
+#### 6.2.2 威胁模型
+
+| 威胁 ID | 资产与攻击路径 | 确定性控制 | 验证证据 | 剩余风险 |
+|---|---|---|---|---|
+| `THR-01` | Prompt injection 或 LLM 直接提出危险 shell action | 模型响应先经 schema parser，再由 guardrail 在 executor 前判定 | `tests/test_actions.py`、`tests/test_guardrails.py`、危险动作 demo | 规则匹配不能覆盖所有 shell 混淆和间接副作用 |
+| `THR-02` | 通过绝对路径、`..` 等方式访问 workspace 外文件 | 路径规范化后执行 containment check，越界读写拒绝 | `tests/test_file_tools.py` | 符号链接、挂载点及平台路径语义仍需操作系统级隔离补强 |
+| `THR-03` | 将风险命令伪装成 validation 绕过普通命令治理 | `run_command` 与 `run_validation` 共享同一 guardrail；validation 只改变反馈语义，不改变权限 | `tests/test_loop_tools_guardrails.py`、`tests/test_feedback_loop.py` | 自定义安全命令仍可能执行其内部包含的高风险逻辑 |
+| `THR-04` | API key 经 CLI 参数、配置、日志或 memory 泄露 | hidden input、OS keyring、secret redaction；生产 CLI 无明文文件 fallback | `tests/test_credentials.py`、`tests/test_memory.py` | 已被外部进程或系统管理员攻破的主机不在保护范围内 |
+| `THR-05` | 审批文件被改写、换参或复制后重放 | canonical action + HMAC-SHA256；签名 key 独立存于 keyring；批准在工具调用前一次性消费 | `tests/test_approval.py` | 本地审批文件仍可能暴露 action 参数，因此 `.safecodeloop/` 必须保持本地并排除出 Git |
+| `THR-06` | 模型在代码写入或 validation 失败后直接声明成功 | harness 根据真实工具事件维护 completion gate；新的客观 pass 前拒绝 `finish` | `tests/test_loop.py`、`tests/test_feedback_loop.py` | 配置错误或覆盖不足的 validator 可能给出不充分的 pass |
+| `THR-07` | 超长 stdout/stderr 挤占上下文或把敏感内容反射给模型 | 完整 evidence 留在日志；模型只接收有界、脱敏摘要和 hash/reference | `tests/test_feedback.py`、`tests/test_feedback_loop.py` | 日志本身仍需由操作者控制文件权限和保留周期 |
+| `THR-08` | 无限步骤、无限验证或相同失败重复消耗资源 | `maxSteps`、命令 timeout、`maxValidations` 和重复失败熔断器 | `tests/test_loop.py`、`tests/test_command_tool.py`、`tests/test_feedback_loop.py` | 单次允许命令仍可能消耗较多 CPU、内存或磁盘 |
+| `THR-09` | Provider 鉴权、超时或异常响应导致崩溃并泄露 key | adapter 将错误转换为不含 secret 的稳定异常；核心测试默认不访问网络 | `tests/test_llm.py`、`tests/test_credentials.py` | 第三方服务的可用性、隐私策略和兼容性由供应商控制 |
+| `THR-10` | Release 或镜像混入 `.git`、凭据、审批状态或本地日志 | release 基于 `git ls-files`；归档和 image 内容执行排除检查 | `RELEASE_CHECKLIST.md`、`.dockerignore`、Docker 验证记录 | 已被错误提交进 Git 历史的内容不会被打包规则自动消除，发布前仍需凭据扫描 |
+
+#### 6.2.3 安全失败原则
+
+- 无法解析、未知工具、越界路径、损坏审批记录和不可用 keyring 均返回明确错误，不猜测、不自动放宽权限。
+- `blocked`、`needs_approval`、`validation_budget_exhausted` 与 `repeated_validation_failure` 是稳定终态，CLI 和运行日志必须保留原因。
+- 安全控制由代码和状态机实现；prompt 可以解释规则，但不承担最终授权或完成判定。
 
 ### 6.3 可用性
 
-- CLI 输出清楚说明当前状态。
-- 错误信息告诉用户下一步怎么处理。
-- README 能支持新机器从零运行。
+| NFR ID | 可测量要求 | 验收方法 |
+|---|---|---|
+| `NFR-USE-01` | 支持 `safecodeloop`、`python -m safecodeloop` 和 `python -m safecodeloop.cli` 三种入口，help/version 均退出 0 | `tests/test_cli.py` 与 wheel smoke |
+| `NFR-USE-02` | CLI 退出码稳定：成功与 key/approval 正常操作为 0；blocked/needs_approval/max_steps 等非成功 run 为 1；配置、凭据、provider、审批数据错误为 2 | `tests/test_cli_run.py`、`tests/test_credentials.py`、`tests/test_approval.py` |
+| `NFR-USE-03` | 每次 run 至少输出 `status: <stable-enum>`；需要审批时额外输出 `approval_id`；错误路径输出不含 secret 的原因 | CLI capture 测试和三个 demo |
+| `NFR-USE-04` | 在没有真实 key 的全新环境中，评审者只依赖 release、Python 3.11+ 或 Docker 即可运行 MockLLM 测试和演示 | 按 §10.3 全新机器验收清单执行 |
 
 ### 6.4 可观测性
 
-- 每次运行保存 step log。
-- guardrail 决策记录原因。
-- feedback 记录分类结果。
-- 普通 `run_command` 保留为工具 observation；只有显式 `run_validation` 产生客观验证 feedback。
-- 真实 LLM 响应不得记录密钥。
+| NFR ID | 可测量要求 | 验收方法 |
+|---|---|---|
+| `NFR-OBS-01` | 使用 `--log` 时生成 UTF-8 JSON，至少包含 run status、final message、approval id 与按 index 排序的 steps | `tests/test_cli_run.py` 解析日志并断言字段 |
+| `NFR-OBS-02` | 每个 step 记录 LLM response、parsed action 和 observation；guardrail/feedback observation 包含稳定类别与原因 | loop、guardrail、feedback 和 demo 测试 |
+| `NFR-OBS-03` | 完整 validation evidence 留在 step/run log；模型上下文仅包含有界摘要、原字符数、SHA-256 和 evidence 位置 | 长输出 feedback 测试 |
+| `NFR-OBS-04` | 普通 `run_command` 不产生 validation feedback；只有显式 `run_validation` 产生客观验证事件 | `tests/test_feedback_loop.py` |
+| `NFR-OBS-05` | API key 和 approval signing key 不得进入 LLM context、memory、run log 或 status 输出 | credentials、memory、LLM redaction 测试及提交前 secret scan |
+
+### 6.5 可靠性与停止保证
+
+| NFR ID | 可测量要求 | 验收方法 |
+|---|---|---|
+| `NFR-REL-01` | 非零命令退出、timeout、tool exception 和 parse error 转成结构化 observation/result，不使主进程因未捕获异常崩溃 | command、tools、loop 单测 |
+| `NFR-REL-02` | 任一 run 必须在 success、failed、blocked、needs_approval、max_steps、validation budget exhausted 或 repeated failure 之一终止 | loop/feedback/approval 表驱动测试 |
+| `NFR-REL-03` | 普通运行与 approval resume 使用相同 guardrail、completion gate、validation budget 和 circuit breaker | approval 与 feedback loop 回归测试 |
 
 ## 7. 系统架构
 
@@ -407,18 +439,74 @@ Agent Loop
 Agent Loop -> Action Parser -> Tool Dispatcher -> Tools -> Observation -> Agent Loop
 ```
 
+### 7.1 数据流与信任边界
+
+```text
+可信本地操作者
+      |
+      | TB-01：CLI 参数 / config 校验
+      v
+Run Controller -------------------------------> OS Keyring
+      |                                             ^
+      |                                             | TB-05：secret 与签名 key
+      v                                             |
+Agent Loop ---> LLM Adapter ---> External Provider |
+    ^              |                 (不可信)       |
+    |              | TB-02：原始模型响应            |
+    |              v                               |
+    |         Action Parser                        |
+    |              |                               |
+    |              | TB-03：未经授权的候选 action  |
+    |              v                               |
+    |       Guardrail / Approval ------------------+
+    |              |
+    |              | 仅 allow 或已消费 approval
+    |              v
+    |        Tool Dispatcher
+    |          /          \
+    | TB-04   v            v
+    |     Workspace     Host Shell
+    |          \          /
+    |           ToolResult
+    |              |
+    |       Validation Classifier
+    |          /             \
+    | TB-06   v               v
+    +-- 有界摘要进入上下文   完整证据进入 Run Log
+```
+
+| 边界 | 两侧组件 | 边界规则 |
+|---|---|---|
+| `TB-01` | 操作者/配置 → Run Controller | 校验路径、枚举、正整数预算和 provider 配置；key 不允许通过命令行明文传入 |
+| `TB-02` | LLM Provider → Action Parser | 响应始终不可信；必须通过 JSON/schema 校验，原始内容不得直接调用工具 |
+| `TB-03` | Parsed Action → Guardrail/Approval | action 只是候选副作用；必须先取得 allow 或与原 action 绑定的一次性 approval |
+| `TB-04` | Tool Dispatcher → Workspace/Host Shell | 文件工具受 workspace containment 限制；命令有 timeout 并返回结构化结果 |
+| `TB-05` | Approval/Credential 模块 → OS Keyring/本地记录 | secret 与签名 key 只进 keyring；本地审批记录按不可信文件重新验证完整性 |
+| `TB-06` | Tool evidence → LLM Context/Run Log | 模型接收有界脱敏摘要；完整证据留在日志并通过长度、hash 和位置关联 |
+
+### 7.2 外部依赖及失效行为
+
+| 外部依赖 | 用途 | 不可用时行为 | 是否影响离线核心验收 |
+|---|---|---|---|
+| OpenAI-compatible provider | 可选真实决策来源 | 返回稳定 provider error，不泄露 key | 否，MockLLM 可替代 |
+| OS keyring | API key 与 approval 签名 key | 涉及凭据或审批的路径安全失败 | 普通 MockLLM 安全任务不受影响 |
+| Host shell | 执行允许的命令和 validator | timeout/非零退出转成结构化 `ToolResult` | 测试使用受控本地命令 |
+| Workspace filesystem | 代码、memory、log 和审批记录 | I/O 错误转为 observation；越界访问拒绝 | 使用 pytest 临时目录验证 |
+| pytest | 默认客观验证器和演示依赖 | 分类为 environment error，不能错误 success | 是，因此 CI 与演示镜像显式安装 |
+
 主要模块：
 
-- `core/loop`：主循环与停止条件。
-- `llm`：LLM interface、mock LLM、真实 adapter。
-- `actions`：action schema 与 parser。
-- `tools`：工具注册与实现。
-- `guardrails`：危险动作规则与审批状态。
-- `feedback`：测试传感器与失败分类。
-- `memory`：记忆存储与上下文选择。
-- `config`：配置加载与校验。
-- `credentials`：密钥存储与脱敏。
-- `cli`：命令行入口。
+- `loop.py`：主循环、完成门槛与停止条件。
+- `llm.py`：LLM interface、MockLLM 与 OpenAI-compatible adapter。
+- `actions.py`：action schema 与 parser。
+- `tools.py`：工具注册、文件/命令工具与 validation action。
+- `guardrails.py`：危险动作的 allow/block/needs_approval 决策。
+- `approval.py`：持久审批、HMAC 完整性与一次性消费状态机。
+- `feedback.py`：验证结果分类、有界摘要与 evidence reference。
+- `memory.py`：记忆存储、脱敏与上下文选择。
+- `config.py`：配置加载与校验。
+- `credentials.py`：OS keyring、隐藏输入与脱敏。
+- `cli.py`：命令行入口、审批命令与 resume。
 
 ## 8. 数据模型
 
@@ -521,20 +609,27 @@ Agent Loop -> Action Parser -> Tool Dispatcher -> Tools -> Observation -> Agent 
 
 本项目主要贡献是：
 
-> 治理护栏 + 测试反馈闭环。
+> **反馈闭环（Validation Feedback Control Plane）**：由 harness 的确定性状态机控制“什么算客观验证、失败如何进入下一轮、以及何时允许任务成功结束”。
+
+治理护栏是完整 Coding Agent Harness 的必要基础设施，也是所有工具与验证动作的安全前置条件；它具有可恢复审批、防篡改和一次性消费等增强，但不与反馈闭环并列为第二个主要贡献。这样既保证决策、工具、记忆、治理、反馈、配置六个维度均有可运行实现，也符合“选择一个机制密集维度深入实现”的要求。
 
 理由：
 
 - 作业强调真实机制必须能在移除 LLM 后被单测验证。
-- 护栏和反馈最容易被错误地写成提示词，因此最适合作为代码机制展示。
-- mock LLM 可以确定性复现危险动作拦截和反馈修正。
+- 反馈闭环最容易退化成“把 stdout 原样塞回 prompt”，但这种做法不能阻止模型在失败后直接声明完成。
+- MockLLM 可以确定性复现失败注入、反馈回灌、动作改变、重新验证和最终停止，不依赖网络、额度或模型随机性。
+- 反馈控制同时涉及 action 协议、工具结果、上下文预算、完成判定与停止条件，具有足够的机制深度。
 
 深度目标：
 
-- guardrail 支持 `allow`、`block`、`needs_approval`。
-- guardrail 在执行前发生。
-- feedback classifier 区分测试失败、语法错误、超时、环境错误。
-- 演示中能看到失败反馈改变下一步动作。
+- 普通 `run_command` 只产生工具 observation；只有显式 `run_validation` 产生客观 validation feedback。
+- feedback classifier 区分 `pass`、测试失败、语法错误、类型错误、lint 失败、超时、环境错误和未知失败。
+- 完整 stdout/stderr 保留在运行日志；模型只接收默认不超过 1200 字符的诊断摘要，并获得原始字符数、SHA-256 与日志位置。
+- 成功写入代码或工程配置后必须取得更新后的 validation pass，才能接受 `finish`。
+- 验证失败后直接请求 `finish` 会产生 `completion_rejected` observation，而不是假成功。
+- `maxValidations` 限制总验证次数；`maxRepeatedFailures` 对相同类别与摘要的连续失败打开熔断器。
+- 普通运行路径和 approval resume 路径共享同一套完成门槛、验证预算与熔断规则。
+- 主要贡献演示确定性复现 failure → bounded feedback → correction → pass；综合 demo 额外证明验证动作同样不能绕过执行前 guardrail。
 
 ## 10. 凭据与分发设计
 
@@ -587,6 +682,75 @@ README 必须说明：
 - release 链接在哪里。
 - 已知限制。
 
+### 10.3 全新机器验收流程
+
+目标平台为 Windows 10/11 或常见 Linux（Python 3.11+），以及能够运行 Linux container 的 Docker Desktop/Engine。全新机器验收必须从与最终提交 commit 对齐的公开 release artifact 或该最终 commit 的仓库 clone 开始，不能依赖开发机的 editable install、已有虚拟环境、真实 API key 或未提交文件。
+
+#### 路径 A：Python source release
+
+前置条件：Python 3.11+、可访问 Python package index 以安装声明依赖和 pytest。
+
+```powershell
+python --version
+python -m pip install . pytest
+python -m pytest
+python -m safecodeloop --help
+python -m safecodeloop --version
+```
+
+客观通过标准：
+
+- Python 版本不低于 3.11；
+- 安装命令退出 0；
+- 全量结果为 `116 passed`；
+- help 与 version 均退出 0，version 为 `0.1.0`；
+- 整个过程不要求配置真实 LLM key。
+
+随后创建最小 demo config 并运行主要贡献演示：
+
+```powershell
+Set-Content -Path .\demo-config.json -Value '{"maxSteps":6}'
+safecodeloop run --mock-script .\demos\feedback_correction.json --config .\demo-config.json --workspace .\tmp-feedback --log .\feedback-log.json correct a failing implementation
+```
+
+客观通过标准：日志依次包含 `test_failure` 和 `pass`，最终 CLI 输出 `status: success` 且退出 0；`feedback-log.json` 可被 JSON parser 读取。
+
+需要真实 provider 时，必须在目标机器使用隐藏输入配置凭据：
+
+```powershell
+safecodeloop key status njusehub
+safecodeloop key set njusehub
+safecodeloop key status njusehub
+safecodeloop key clear njusehub
+```
+
+客观通过标准：set 使用不可回显输入；status 只显示 configured/not configured；任何输出都不包含 key 或可识别片段。
+
+#### 路径 B：Docker 干净环境
+
+前置条件：Docker Engine/Desktop 可用，首次 build 可以访问基础镜像 registry。
+
+```powershell
+docker build --tag safecodeloop:0.1.0 .
+docker run --rm safecodeloop:0.1.0 --help
+docker run --rm safecodeloop:0.1.0 --version
+Set-Content -Path .\demo-config.json -Value '{"maxSteps":6}'
+docker run --rm -v "${PWD}\demo-config.json:/app/demo-config.json:ro" safecodeloop:0.1.0 run --mock-script /app/demos/feedback_correction.json --config /app/demo-config.json --workspace /tmp/demo correct a failing implementation
+```
+
+客观通过标准：image build 退出 0；help/version 退出 0；容器内 demo 出现 failure → correction → pass 并最终 `status: success`；普通安全 MockLLM 任务不初始化 OS keyring。
+
+#### 分发验收失败条件
+
+出现以下任一情况即判为分发验收失败：
+
+- 需要未记录的环境变量、真实 key、开发机绝对路径或未提交文件；
+- release archive 或 image 包含 `.git`、`.env`、`.safecodeloop`、运行日志、缓存或仓库外的私有执行辅助文档；课程交付物 `PLAN.md` 不属于排除对象；
+- release tag、asset 内容与最终提交 commit 不一致，或无法从 artifact 追溯构建来源；
+- 安装后 console script、模块入口、MockLLM 测试或 demo 任一不可运行；
+- keyring 不可用时静默写入明文文件；
+- validation 依赖缺失却错误返回 success。
+
 ## 11. 技术选型
 
 锁定选型：
@@ -634,7 +798,33 @@ README 必须说明：
 - `submission.jsonc` 填写仓库链接、`is_deployed=false`、release 链接。
 - `AGENT_LOG.md` 和 `REFLECTION.md` 完成。
 
-## 13. 风险与未决问题
+## 13. 需求—机制—验收—测试追踪矩阵
+
+以下编号为 SPEC 的稳定追踪标识，用于把课程要求、实现机制、客观验收和测试证据连接起来。测试文件均使用 MockLLM、stub 或本地临时资源验证核心机制，不依赖真实 LLM 和网络。
+
+| 需求 ID | 需求与机制 | 客观验收标准 | 主要测试 / 演示证据 |
+|---|---|---|---|
+| `FR-ACT-01` | 模型输出必须先经过 Action Parser，未知类型或缺少字段安全失败 | 非法 JSON、未知 action、缺少参数均不得进入工具层 | `tests/test_actions.py` |
+| `FR-LLM-01` | LLM 通过可注入接口接入，MockLLM 按脚本确定性返回动作 | 无 API key、无网络时可精确断言响应顺序与上下文 | `tests/test_llm.py` |
+| `FR-LOOP-01` | AgentLoop 负责 context → LLM → parse → dispatch → observation → stop | `finish`、parse error、max steps 和各类终态均有稳定结果 | `tests/test_loop.py` |
+| `FR-TOOL-01` | 工具由 registry 分发并返回结构化 `ToolResult` | 未注册工具安全失败；命令 exit code/stdout/stderr/timeout 可观察 | `tests/test_tools.py`、`tests/test_command_tool.py` |
+| `FR-FILE-01` | 文件操作限制在规范化后的 workspace 边界内 | `..` 和工作区外路径被拒绝，合法读写成功 | `tests/test_file_tools.py` |
+| `FR-GOV-01` | 所有工具与验证动作执行前经过 `allow/block/needs_approval` 判断 | 被 block 的 action 不调用 executor；验证动作不能成为旁路 | `tests/test_guardrails.py`、`tests/test_loop_tools_guardrails.py` |
+| `FR-APR-01` | 风险动作使用可跨进程恢复的一次性审批状态机 | 未批准、拒绝、篡改、换参、重复消费均 fail closed | `tests/test_approval.py` |
+| `FR-FBK-01` | 普通命令与客观验证在 action 协议层分离 | `run_command` 不产生 validation feedback；`run_validation` 才产生分类结果 | `tests/test_feedback_loop.py`、`tests/test_actions.py` |
+| `FR-FBK-02` | 验证失败分类为稳定类别并以有界摘要进入模型上下文 | 八类结果可区分；完整证据留在日志；上下文包含长度、hash 和日志引用 | `tests/test_feedback.py`、`tests/test_feedback_loop.py` |
+| `FR-FBK-03` | 写入或失败后必须取得新的客观 pass 才能完成 | 失败后或写入后直接 `finish` 被拒绝；通过验证后可 success | `tests/test_loop.py`、`tests/test_feedback_loop.py` |
+| `FR-FBK-04` | 验证预算和重复失败熔断阻止无限循环 | 超预算返回 `validation_budget_exhausted`；重复失败返回 `repeated_validation_failure` | `tests/test_feedback_loop.py`、`tests/test_config.py` |
+| `FR-MEM-01` | 项目事实持久化并按相关性、优先级和预算进入上下文 | 相关记忆可检索；不相关项在预算不足时省略；疑似密钥脱敏 | `tests/test_memory.py`、`tests/test_context_memory.py` |
+| `FR-CFG-01` | 配置经校验后真实控制工具、治理和验证边界 | 非法正整数和未知值被拒绝；blocked pattern 与预算改变运行结果 | `tests/test_config.py` |
+| `NFR-SEC-01` | 生产凭据存入 OS keyring，隐藏录入且不回显 | status/set/clear 不泄露明文；生产 CLI 不静默降级到明文文件 | `tests/test_credentials.py` |
+| `NFR-OBS-01` | 每一步保存 action、治理、工具、feedback 和终态证据 | CLI 可生成结构化 run log，feedback evidence 可由 hash 与位置核对 | `tests/test_cli_run.py`、`tests/test_feedback_loop.py` |
+| `DEMO-A6-01` | 确定性展示危险动作执行前拦截 | 最终状态为 `blocked`，危险命令未执行 | `tests/test_demo_guardrail.py`、`demos/dangerous_action.json` |
+| `DEMO-A6-02` | 确定性展示失败反馈改变下一步动作 | 首次 validation 失败，修正后 pass，最终 success | `tests/test_demo_feedback.py`、`demos/feedback_correction.json` |
+| `DEMO-MAIN-01` | 展示主要贡献“反馈控制面”的完整行为 | failure → feedback → correction → pass，并证明后续危险动作仍受治理 | `tests/test_demo_main_contribution.py`、`demos/governance_feedback_depth.json` |
+| `DIST-01` | CLI、release 与 Docker 提供可复现分发路径 | 最终 tag/asset 与提交 commit 对齐；source 路径 `116 passed`；镜像可运行 help/version 和 MockLLM 反馈演示 | §10.3、`.github/workflows/ci.yml`、`.gitlab-ci.yml`、`Dockerfile`、`RELEASE_CHECKLIST.md` |
+
+## 14. 风险、已决策事项与剩余边界
 
 ### 风险
 
@@ -649,12 +839,19 @@ README 必须说明：
 
 - 保持 CLI-only。
 - 以 mock LLM 单测为中心。
-- 优先实现护栏和反馈闭环。
+- 六维保持可运行最低实现，优先深化反馈闭环；治理护栏作为安全前置条件保持确定性测试覆盖。
 - 每个 task 记录 `AGENT_LOG.md`。
 - 提交前做凭据泄漏检查。
 
-### 未决问题
+### 已决策事项
 
-- 是否实现 OS keyring，还是用 `.env` fallback 并充分说明风险。
-- release 使用 GitHub 还是 NJU Git。
-- 冷启动验证使用哪个不同 agent。
+- 生产凭据使用 OS keyring；明文文件 backend 仅允许测试显式注入，不做生产 fallback。
+- 分发采用 CLI-only + GitHub Release，并提供已实际构建验证的 Dockerfile/image 路径。
+- 冷启动验证使用 Gemini，与主开发智能体类型不同；暴露的问题和修订记录见 `SPEC_PROCESS.md`。
+
+### 剩余边界
+
+- Guardrail 是确定性治理层，不等价于操作系统级安全沙箱，无法证明覆盖所有 shell 混淆形式。
+- OpenAI-compatible adapter 的真实运行依赖供应商网络、凭据、模型可用性和响应兼容性；核心验收不依赖该路径。
+- OS keyring 的可用性依赖目标系统；不可用时涉及凭据或签名的路径安全失败。
+- Memory Store 是适合教学 harness 的轻量结构化存储，不面向大型多仓库语义检索。
