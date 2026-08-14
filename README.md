@@ -58,7 +58,7 @@ python -m pytest
 Current local result:
 
 ```text
-132 passed
+176 passed, 2 skipped
 ```
 
 ## CLI Usage
@@ -294,7 +294,11 @@ Dockerfile              container distribution file
 
 ## Safety Boundary
 
-SafeCodeLoop is a teaching harness, not a production sandbox. It uses deterministic guardrail checks and workspace path checks, but it still runs local commands through the host shell when `run_command` is allowed. Use temporary workspaces for demos and do not run untrusted scripts.
+Every command and file action receives a deterministic `allowed`, `blocked`, or `needs_approval` decision before dispatch. Decisions include a stable `rule_id`, severity, and reason; matching blocked rules take priority over approval rules, and approval rules take priority over the default allow decision.
+
+Built-in rules fail closed for destructive deletion variants across POSIX, PowerShell, and cmd; shell obfuscation; parent traversal; workspace/symlink escapes; and sensitive files such as `.env`, SSH keys, credential files, and `.safecodeloop` approval data. Dependency installation, publishing/deployment, external writes, nested shells, and compound commands require approval. `blockedCommandPatterns` and `approvalRequiredPatterns` add case-insensitive regular-expression rules; invalid expressions are rejected when configuration is loaded.
+
+SafeCodeLoop is a teaching harness, not a production sandbox. Allowed commands still run through the host shell, so deterministic rules cannot enumerate every indirect side effect or obfuscation. Use temporary workspaces for demos and do not run untrusted scripts.
 
 ## Known Limitations
 

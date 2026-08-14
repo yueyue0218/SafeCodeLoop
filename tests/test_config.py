@@ -120,3 +120,38 @@ def test_unknown_config_field_is_rejected(tmp_path):
         assert "unknown config field" in str(exc)
     else:
         raise AssertionError("expected ConfigError")
+
+
+def test_config_approval_pattern_affects_guardrail(tmp_path):
+    path = tmp_path / "safecodeloop.config.json"
+    path.write_text(
+        json.dumps({"approvalRequiredPatterns": [r"git status"]}),
+        encoding="utf-8",
+    )
+    config = load_config(path)
+    engine = GuardrailEngine(
+        tmp_path,
+        blocked_command_patterns=config.blocked_command_patterns,
+        approval_required_patterns=config.approval_required_patterns,
+    )
+
+    decision = engine.check(
+        Action(type="run_command", arguments={"command": "git status --short"})
+    )
+
+    assert decision.status == "needs_approval"
+    assert decision.rule_id == "config.approval.0"
+
+
+def test_invalid_guardrail_regex_is_rejected_during_config_load(tmp_path):
+    for field in ("blockedCommandPatterns", "approvalRequiredPatterns"):
+        path = tmp_path / f"{field}.json"
+        path.write_text(json.dumps({field: ["["]}), encoding="utf-8")
+
+        try:
+            load_config(path)
+        except ConfigError as exc:
+            assert field in str(exc)
+            assert "invalid regex" in str(exc)
+        else:
+            raise AssertionError(f"expected ConfigError for {field}")

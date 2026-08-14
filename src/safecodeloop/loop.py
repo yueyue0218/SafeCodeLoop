@@ -151,6 +151,8 @@ class AgentLoop:
                         "kind": "guardrail_result",
                         "status": decision.status,
                         "reason": decision.reason,
+                        "rule_id": decision.rule_id,
+                        "severity": decision.severity,
                     }
                     if approval_id is not None:
                         observation["approval_id"] = approval_id
@@ -349,6 +351,8 @@ class AgentLoop:
                     "kind": "guardrail_result",
                     "status": decision.status,
                     "reason": decision.reason,
+                    "rule_id": decision.rule_id,
+                    "severity": decision.severity,
                 }
                 if next_id:
                     guardrail_observation["approval_id"] = next_id
