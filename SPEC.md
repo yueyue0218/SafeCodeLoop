@@ -350,7 +350,7 @@ WebUI：
 
 | NFR ID | 可测量要求 | 验收方法 |
 |---|---|---|
-| `NFR-PERF-01` | 116 项离线测试不访问真实 LLM 或网络；在本项目 Windows/Python 3.11 基线中目标 30 秒内完成（当前 7.57 秒） | 断网或不配置 key 后运行 `python -m pytest`，必须全部通过 |
+| `NFR-PERF-01` | 132 项离线测试不访问真实 LLM 或网络；在本项目 Windows/Python 3.11 基线中目标 30 秒内完成（当前 7.50 秒） | 断网或不配置 key 后运行 `python -m pytest`，必须全部通过 |
 | `NFR-PERF-02` | 单次进入模型上下文的 validation details 默认不超过 1200 字符 | 长输出测试断言 `details` 长度、截断标志、原长度与 SHA-256 |
 | `NFR-PERF-03` | 默认单次 run 最多 5 个 agent steps、4 次 validations；相同失败连续 2 次打开熔断 | 加载默认 config，并通过 loop/config 单测验证终态 |
 | `NFR-PERF-04` | 本地命令默认 10 秒 timeout；真实 provider 请求默认 60 秒 timeout | command/LLM stub 测试断言 timeout 参数和结构化错误 |
@@ -804,7 +804,7 @@ docker run --rm -v "${PWD}\demo-config.json:/app/demo-config.json:ro" safecodelo
 
 | 需求 ID | 需求与机制 | 客观验收标准 | 主要测试 / 演示证据 |
 |---|---|---|---|
-| `FR-ACT-01` | 模型输出必须先经过 Action Parser，未知类型或缺少字段安全失败 | 非法 JSON、未知 action、缺少参数均不得进入工具层 | `tests/test_actions.py` |
+| `FR-ACT-01` | 模型输出必须先经过严格 Action Parser；每类 action 固定 required/optional 字段、字符串类型和额外字段策略 | 非法 JSON、多 JSON、重复/额外字段、未知 action、缺少参数、错误类型、空必填值和超限响应均 fail closed，不进入工具层；单一 fenced/prose-wrapped action 可恢复解析 | `tests/test_actions.py`、`tests/test_loop.py`、`tests/test_loop_tools_guardrails.py` |
 | `FR-LLM-01` | LLM 通过可注入接口接入，MockLLM 按脚本确定性返回动作 | 无 API key、无网络时可精确断言响应顺序与上下文 | `tests/test_llm.py` |
 | `FR-LOOP-01` | AgentLoop 负责 context → LLM → parse → dispatch → observation → stop | `finish`、parse error、max steps 和各类终态均有稳定结果 | `tests/test_loop.py` |
 | `FR-TOOL-01` | 工具由 registry 分发并返回结构化 `ToolResult` | 未注册工具安全失败；命令 exit code/stdout/stderr/timeout 可观察 | `tests/test_tools.py`、`tests/test_command_tool.py` |

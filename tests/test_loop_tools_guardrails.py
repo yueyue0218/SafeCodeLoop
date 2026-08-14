@@ -10,6 +10,36 @@ from safecodeloop.tools import ToolRegistry, ToolResult, create_command_tool_reg
 SIGNING_KEY = b"test-only-approval-signing-key"
 
 
+def test_schema_invalid_action_never_calls_tool(tmp_path):
+    called = False
+    registry = ToolRegistry()
+
+    def run_command(arguments):
+        nonlocal called
+        called = True
+        return ToolResult(ok=True)
+
+    registry.register("run_command", run_command)
+    llm = MockLLM(
+        [
+            '{"type": "run_command", "command": "echo unsafe", "unexpected": true}',
+            '{"type": "finish", "message": "recovered"}',
+        ]
+    )
+    loop = AgentLoop(
+        llm=llm,
+        max_steps=2,
+        tool_registry=registry,
+        guardrail_engine=GuardrailEngine(tmp_path),
+    )
+
+    result = loop.run("reject invalid schema")
+
+    assert result.status == "success"
+    assert called is False
+    assert result.steps[0].observation["kind"] == "parse_error"
+
+
 def test_blocked_action_does_not_call_tool(tmp_path):
     called = False
     registry = ToolRegistry()

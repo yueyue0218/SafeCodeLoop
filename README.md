@@ -58,7 +58,7 @@ python -m pytest
 Current local result:
 
 ```text
-116 passed
+132 passed
 ```
 
 ## CLI Usage
@@ -76,6 +76,16 @@ The run log records each step:
 - tool result or feedback
 - guardrail result
 - final status
+
+### Action output protocol
+
+The model must return exactly one JSON action object. Field names are action-specific, all action arguments are strings, unknown or duplicate fields are rejected, and required command/path/content fields are validated before any guardrail or tool can run.
+
+```json
+{"type":"read_file","path":"README.md"}
+```
+
+For recovery from common model formatting mistakes, the parser can extract one unambiguous object from a Markdown JSON fence or brief surrounding prose. Responses containing multiple JSON objects remain ambiguous and are rejected. A response is limited to 65,536 characters; parse-error feedback contains only a bounded reason and repair hint, never the invalid response itself.
 
 Validation feedback is classified as `pass`, `test_failure`, `syntax_error`, `type_error`, `lint_failure`, `timeout`, `environment_error`, or `unknown_failure`. Full evidence remains in the run log, while the model receives a bounded diagnostic excerpt with the original character count and SHA-256 reference.
 
