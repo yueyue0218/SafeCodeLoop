@@ -5,12 +5,12 @@
 ## 0. 当前执行基线（2026-08-14）
 
 - 发布准备提交 `5418cc2` 已通过 PR #8 合入 `main`；最终发布收口在 `release/v0.1.0-finalize` 分支完成。
-- 当前本地全量回归：`116 passed`。
+- 当前本地全量回归：`132 passed`。
 - Docker：`safecodeloop:0.1.0` 已成功构建；容器内 `--help`、`--version` 和完整 MockLLM 反馈演示通过。
 - 分发：GitHub Release `v0.1.0` 的 tag 与最终 `main` 提交对齐；Release 提供源码 ZIP、wheel、sdist 和 `SHA256SUMS`，并已按 SPEC §10.3 完成 wheel 干净环境安装与 CLI 冒烟。
 - 凭据：生产 CLI 使用 OS keyring；明文文件 backend 仅供测试显式注入。
 - 真实模型：OpenAI-compatible adapter 已实现；核心验收仍使用离线 MockLLM。
-- 本文各 task 中的较小测试数字是该 task 完成当时的历史回归结果；最终基线统一以上述 `116 passed` 为准。
+- 本文各 task 中的较小测试数字是该 task 完成当时的历史回归结果；当前开发基线统一以上述 `132 passed` 为准，`v0.1.0` Release 验收基线仍为 `116 passed`。
 
 ## 1. 锁定技术路线
 
@@ -239,7 +239,7 @@ Critical issue 必须在同一 PR 中修复并重新验证后才能合并。以�
 
 依赖：T1.3。
 
-状态：已完成。
+状态：已完成；2026-08-14 按 T10.2 完成真实模型输出协议强化。
 
 实际验证：
 
@@ -352,11 +352,17 @@ python -m safecodeloop --help
 - 合法 JSON action 可解析。
 - 未知 action type 被拒绝。
 - 缺少必要字段被拒绝。
+- 单一 Markdown code fence 或前后杂文中的 action 可恢复解析。
+- 多 JSON、重复字段、额外字段、错误类型和空必填字符串被拒绝。
+- 超过 65,536 字符的响应在 JSON 解析前被拒绝。
+- schema 非法的 action 不进入 guardrail 或工具层。
 
 实现要点：
 
 - 支持 `list_files`、`read_file`、`write_file`、`run_command`、`remember`、`finish`、`request_approval`。
 - 后续将验证命令拆分为显式 `run_validation`，避免把普通命令成功误记为测试通过；该动作复用受控命令工具并继续经过相同 guardrail。
+- 每种 action 具有 required/optional/non-empty 字段集合；所有参数类型严格为字符串，未知字段 fail closed。
+- parse error 回灌只包含不超过固定长度的原因和修复提示，不复制原始响应。
 
 验证命令：
 
@@ -369,6 +375,8 @@ python -m pytest tests/test_actions.py
 - 红灯：首次运行 `python -m pytest tests/test_actions.py` 时，`ModuleNotFoundError: No module named 'safecodeloop.actions'`。
 - 绿灯：新增 `src/safecodeloop/actions.py` 后，`tests/test_actions.py` 结果为 `7 passed`。
 - 回归：运行 `python -m pytest`，全量结果为 `11 passed`。
+- T10.2 红灯：新增严格协议测试后，收集阶段因缺少 `MAX_ACTION_RESPONSE_CHARS` 失败。
+- T10.2 绿灯：Action/Loop/Guardrail 专项 `33 passed`；增加“非法 schema 不调用工具”和“重复对象不可隐藏”用例后，全量 `132 passed`。
 
 依赖：T2.1。
 

@@ -23,6 +23,11 @@ Allowed actions:
 - {"type":"finish","message":"result summary"}
 Use only relative paths inside the workspace. Use finish only when the task is complete."""
 
+PARSE_ERROR_REPAIR_HINT = (
+    "Return exactly one JSON action object matching the allowed schema. "
+    "Do not include multiple actions; field names and string types must match the protocol."
+)
+
 
 @dataclass(frozen=True)
 class LoopStep:
@@ -84,11 +89,7 @@ class AgentLoop:
             try:
                 action = parse_action(response.content)
             except ActionParseError as exc:
-                observation = {
-                    "kind": "parse_error",
-                    "message": str(exc),
-                    "raw_response": response.content,
-                }
+                observation = self._parse_error_observation(exc)
                 steps.append(
                     LoopStep(
                         index=index,
@@ -99,7 +100,7 @@ class AgentLoop:
                 messages.append(
                     {
                         "role": "system",
-                        "content": f"parse_error: {observation['message']}",
+                        "content": self._parse_error_context(observation),
                     }
                 )
                 continue
@@ -314,9 +315,9 @@ class AgentLoop:
             try:
                 action = parse_action(response.content)
             except ActionParseError as exc:
-                observation = {"kind": "parse_error", "message": str(exc)}
+                observation = self._parse_error_observation(exc)
                 steps.append(LoopStep(index=index, llm_response=response.content, observation=observation))
-                messages.append({"role": "system", "content": f"parse_error: {exc}"})
+                messages.append({"role": "system", "content": self._parse_error_context(observation)})
                 continue
 
             if action.type == "finish":
@@ -426,6 +427,22 @@ class AgentLoop:
         if not lines:
             return ""
         return "memory_context:\n" + "\n".join(lines)
+
+    @staticmethod
+    def _parse_error_observation(exc: ActionParseError) -> dict[str, str]:
+        message = str(exc)[:240]
+        return {
+            "kind": "parse_error",
+            "message": message,
+            "repair_hint": PARSE_ERROR_REPAIR_HINT,
+        }
+
+    @staticmethod
+    def _parse_error_context(observation: dict[str, str]) -> str:
+        return (
+            f"parse_error: {observation['message']}. "
+            f"repair: {observation['repair_hint']}"
+        )
 
     @staticmethod
     def _is_code_change(path: str) -> bool:

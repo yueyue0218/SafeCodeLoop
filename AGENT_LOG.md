@@ -1137,3 +1137,24 @@ TDD 与设计判断：
 - `python -m pytest`：`116 passed`。
 - `scripts/package_release.ps1`：生成源码 ZIP、wheel、sdist 和 SHA-256 manifest。
 - 公开 `v0.1.0` tag 与最终 `main` 提交一致，Release 四个资产可公开访问并通过校验。
+
+## 2026-08-14 19:00 · T10.2 · Action Schema 与模型输出协议强化
+
+### 红灯与边界决策
+
+- 先为 code fence、前后杂文、多 JSON、额外/重复字段、字段类型、空必填值、remember 必填内容和 64 KiB 上限增加测试。
+- 首次专项测试在收集阶段失败：`actions.py` 尚未定义 `MAX_ACTION_RESPONSE_CHARS`，证明新协议边界此前不存在。
+- 对格式容错采用“唯一对象可恢复、歧义 fail closed”：允许从 fence 或简短说明中提取一个 action，但多个 JSON action 一律拒绝。
+
+### 实现与人工审查
+
+- 用每类 action 的 required/optional/non-empty schema 替代松散字段表；所有参数必须是字符串，未知字段和重复 JSON key 被拒绝。
+- 响应超过 65,536 字符时在 JSON 解码前拒绝，避免无界解析和上下文膨胀。
+- run/resume 两条路径复用相同的有界 parse-error observation；回灌只包含原因和固定修复提示，不复制原始模型输出。
+- 增加 executor 断言，证明 schema 非法的命令不会进入工具层。
+
+### 验证
+
+- Action/Loop/Guardrail 专项：`33 passed`。
+- 全量回归：`132 passed`。
+- `git diff --check` 和凭据模式扫描无异常后再进入 PR。

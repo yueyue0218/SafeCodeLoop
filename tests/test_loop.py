@@ -29,6 +29,21 @@ def test_invalid_llm_output_becomes_parse_error_observation():
     assert result.steps[0].observation["kind"] == "parse_error"
     assert "invalid JSON" in result.steps[0].observation["message"]
     assert "parse_error" in llm.calls[1][-1]["content"]
+    assert "Return exactly one JSON action object" in llm.calls[1][-1]["content"]
+
+
+def test_parse_error_feedback_does_not_echo_large_invalid_response():
+    invalid = "sensitive-invalid-output-" * 1000
+    llm = MockLLM([invalid, '{"type": "finish", "message": "recovered"}'])
+    loop = AgentLoop(llm=llm, max_steps=2)
+
+    result = loop.run("recover safely")
+
+    feedback = llm.calls[1][-1]["content"]
+    assert result.status == "success"
+    assert len(feedback) < 500
+    assert "sensitive-invalid-output" not in feedback
+    assert "raw_response" not in result.steps[0].observation
 
 
 def test_loop_returns_max_steps_when_no_finish_action_arrives():
