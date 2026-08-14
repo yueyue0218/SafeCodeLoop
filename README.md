@@ -58,7 +58,7 @@ python -m pytest
 Current local result:
 
 ```text
-176 passed, 2 skipped
+195 passed, 2 skipped
 ```
 
 ## CLI Usage
@@ -203,6 +203,8 @@ safecodeloop key clear openai
 
 `key set` prompts for the secret without echoing it. SafeCodeLoop stores credentials through the operating-system keyring; on Windows this uses Windows Credential Manager. Status output reports only whether a credential exists and never displays the value or a recognizable fragment. Command-line key values are intentionally unsupported because process arguments and shell history can expose them.
 
+One shared redaction layer sanitizes LLM input/output, AgentLoop boundaries, CLI results and errors, and the complete run-log structure before serialization. It recognizes bearer tokens, common API-key/token/password fields, `sk-...` values, and the exact credential loaded for a real-provider run. Runtime values shorter than 8 characters are deliberately not registered as exact secrets because replacing common short strings would corrupt normal diagnostics; do not use short values as real credentials.
+
 The plaintext file backend is available only through explicit dependency injection for isolated tests. It is not selected by the production CLI. Do not commit `.env`, logs, local memory, or real API keys.
 
 ## Human approval workflow
@@ -304,5 +306,6 @@ SafeCodeLoop is a teaching harness, not a production sandbox. Allowed commands s
 
 - Core tests and deterministic demos use `MockLLM`; real-provider runs require network access, a configured key, and an available compatible model.
 - A usable OS keyring backend must be available on the target system.
+- Pattern redaction cannot identify every previously unknown proprietary secret format; operators must still avoid placing credentials in tasks, source files, or shell commands.
 - WebUI is intentionally not implemented; this follows the CLI-only plus release-link route allowed for Agent Harness submissions.
 - Python wheel installation requires access to the declared `keyring` dependency unless it is already available locally.

@@ -134,6 +134,38 @@ def test_mock_llm_redacts_secret_like_context_in_call_history():
     assert "[REDACTED]" in llm.calls[0][0]["content"]
 
 
+def test_mock_llm_redacts_secret_like_response_before_it_reaches_the_loop():
+    llm = MockLLM(['{"type":"finish","message":"sk-model-leak-value"}'])
+
+    response = llm.generate([{"role": "user", "content": "task"}])
+
+    assert "sk-model-leak-value" not in response.content
+    assert "[REDACTED]" in response.content
+
+
+def test_real_provider_redacts_known_key_from_body_and_response():
+    secret = "runtime-opaque-provider-secret"
+    transport = RecordingTransport(
+        payload={
+            "choices": [
+                {
+                    "message": {
+                        "content": f'{{"type":"finish","message":"{secret}"}}'
+                    }
+                }
+            ]
+        }
+    )
+    llm = OpenAICompatibleLLM(secret, "model", transport=transport)
+
+    response = llm.generate([{"role": "user", "content": f"do not echo {secret}"}])
+
+    request_payload = json.loads(transport.calls[0][0].data)
+    assert secret not in request_payload["messages"][0]["content"]
+    assert secret not in response.content
+    assert "[REDACTED]" in response.content
+
+
 def test_llm_response_contains_provider_metadata_without_secrets():
     llm = MockLLM(["done"], provider="mock-provider")
 

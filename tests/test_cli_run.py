@@ -1,8 +1,11 @@
 import json
 
 from safecodeloop.approval import ApprovalStore
-from safecodeloop.cli import main
-from safecodeloop.llm import LLMResponse
+from safecodeloop.actions import Action
+from safecodeloop.cli import _write_run_log, main
+from safecodeloop.llm import LLMError, LLMResponse
+from safecodeloop.loop import LoopStep, RunResult
+from safecodeloop.redaction import SecretRedactor
 
 
 def test_run_cli_with_mock_script_succeeds_and_writes_file(tmp_path, capsys):
@@ -121,6 +124,84 @@ def test_run_cli_writes_log_file(tmp_path):
     assert payload["status"] == "success"
     assert payload["final_message"] == "ok"
     assert payload["steps"][0]["action"]["type"] == "finish"
+
+
+def test_run_log_redacts_final_message_llm_action_and_observation(tmp_path):
+    secret = "runtime-opaque-log-secret"
+    result = RunResult(
+        status="success",
+        final_message=f"finished with {secret}",
+        steps=[
+            LoopStep(
+                index=0,
+                llm_response=f'{{"type":"write_file","content":"{secret}"}}',
+                action=Action(
+                    type="write_file",
+                    arguments={"path": "result.txt", "content": secret},
+                ),
+                observation={
+                    "kind": "tool_result",
+                    "details": f"Bearer {secret}",
+                    "nested": [f"OPENAI_API_KEY={secret}"],
+                },
+            )
+        ],
+    )
+    path = tmp_path / "run-log.json"
+
+    _write_run_log(path, result, redactor=SecretRedactor([secret]))
+
+    serialized = path.read_text(encoding="utf-8")
+    assert secret not in serialized
+    assert serialized.count("[REDACTED]") >= 5
+
+
+def test_cli_redacts_secret_like_final_message(tmp_path, capsys):
+    secret = "sk-cli-final-message-secret"
+    script = tmp_path / "script.json"
+    script.write_text(
+        json.dumps([{"type": "finish", "message": secret}]),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        ["run", "--mock-script", str(script), "--workspace", str(tmp_path / "work"), "finish"]
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert secret not in output
+    assert "[REDACTED]" in output
+
+
+def test_cli_redacts_secret_like_configuration_error(tmp_path, capsys):
+    secret = "sk-cli-config-error-secret"
+    config = tmp_path / "config.json"
+    config.write_text(json.dumps({secret: True}), encoding="utf-8")
+
+    exit_code = main(["run", "--config", str(config), "inspect"])
+
+    output = capsys.readouterr().out
+    assert exit_code == 2
+    assert secret not in output
+    assert "[REDACTED]" in output
+
+
+def test_cli_redacts_registered_runtime_secret_from_exception(monkeypatch, capsys):
+    secret = "runtime-opaque-cli-error-secret"
+
+    def failing_llm_factory(config, mock_script, redactor):
+        redactor.add_secret(secret)
+        raise LLMError(f"provider failed while handling {secret}")
+
+    monkeypatch.setattr("safecodeloop.cli._create_llm", failing_llm_factory)
+
+    exit_code = main(["run", "inspect"])
+
+    output = capsys.readouterr().out
+    assert exit_code == 2
+    assert secret not in output
+    assert "[REDACTED]" in output
 
 
 def test_run_cli_returns_nonzero_for_blocked_action(tmp_path, capsys):

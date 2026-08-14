@@ -5,12 +5,12 @@
 ## 0. 当前执行基线（2026-08-14）
 
 - 发布准备提交 `5418cc2` 已通过 PR #8 合入 `main`；最终发布收口在 `release/v0.1.0-finalize` 分支完成。
-- 当前本地全量回归：`176 passed, 2 skipped`（symlink 用例在当前 Windows 权限下跳过）。
+- 当前本地全量回归：`195 passed, 2 skipped`（symlink 用例在当前 Windows 权限下跳过）。
 - Docker：`safecodeloop:0.1.0` 已成功构建；容器内 `--help`、`--version` 和完整 MockLLM 反馈演示通过。
 - 分发：GitHub Release `v0.1.0` 的 tag 与最终 `main` 提交对齐；Release 提供源码 ZIP、wheel、sdist 和 `SHA256SUMS`，并已按 SPEC §10.3 完成 wheel 干净环境安装与 CLI 冒烟。
 - 凭据：生产 CLI 使用 OS keyring；明文文件 backend 仅供测试显式注入。
 - 真实模型：OpenAI-compatible adapter 已实现；核心验收仍使用离线 MockLLM。
-- 本文各 task 中的较小测试数字是该 task 完成当时的历史回归结果；当前开发基线统一以上述 `176 passed, 2 skipped` 为准，`v0.1.0` Release 验收基线仍为 `116 passed`。
+- 本文各 task 中的较小测试数字是该 task 完成当时的历史回归结果；当前开发基线统一以上述 `195 passed, 2 skipped` 为准，`v0.1.0` Release 验收基线仍为 `116 passed`。
 
 ## 1. 锁定技术路线
 
@@ -61,7 +61,10 @@
 | 分类与有界反馈 | `feat/t12-feedback-classification` | `007643c` | PR #6 / `3300cc5` | 八类反馈、1200 字符摘要、hash/reference；全量 `106 passed` |
 | 完成门槛与停止控制 | `feat/t12-validation-controls` | `20fde80` | PR #7 / `b140ea4` | 写入/失败后拒绝假成功、预算、熔断、resume 同规则；全量 `114 passed` |
 | v0.1.0 干净环境验证 | `release/v0.1.0-prep` | `5418cc2` | PR #8 / `e11b0b9` | Docker build/run、惰性审批存储、演示镜像 pytest；本地最终 `116 passed` |
-| v0.1.0 最终发布收口 | `release/v0.1.0-finalize` | 由 `v0.1.0` tag 追溯 | 最终发布 PR | 打包脚本生成源码 ZIP、wheel、sdist、commit 记录与 SHA-256；公开 Release 替换为最终资产并执行干净安装 |
+| v0.1.0 最终发布收口 | `release/v0.1.0-finalize` | `e45b431` | PR #9 / `6b8a714` | 打包脚本生成源码 ZIP、wheel、sdist、commit 记录与 SHA-256；公开 Release 替换为最终资产并执行干净安装 |
+| 严格 Action Schema | `feat/t10-action-schema` | `976a336` | PR #10 / `f775162` | 唯一 JSON action、严格字段/类型/大小上限、歧义 fail closed；全量 `132 passed` |
+| Guardrail 对抗强化 | `feat/t11-guardrail-hardening` | `af886c5` | PR #11 / `adc44aa` | 跨 shell 绕过矩阵、稳定规则元数据、配置接线和路径/敏感文件治理；全量 `176 passed, 2 skipped` |
+| 统一 Secret Redaction | `feat/t9-unified-secret-redaction` | 本分支提交 | 待创建 PR | 共享递归脱敏层覆盖模型、AgentLoop、CLI 和 run log；全量 `195 passed, 2 skipped` |
 
 ### 2.3 两阶段评审纪律
 

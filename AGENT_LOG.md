@@ -1174,3 +1174,20 @@ TDD 与设计判断：
 - 文件类动作统一执行 resolve 后工作区检查，阻止 symlink/junction 越界及敏感文件访问；`.env.example` 等模板保持允许。
 - CLI 同时接入 blocked/approval 配置模式；配置加载期编译正则并用字段名报告错误。
 - 专项结果：`66 passed, 1 skipped`；补充“symlink 别名不能隐藏敏感文件”回归后，全量结果：`176 passed, 2 skipped in 8.62s`。跳过项仅为当前 Windows 账户不能创建 symlink，测试用例仍保留供支持该能力的平台执行。
+
+## 2026-08-14 21:00 · T9.3 · 统一 Secret Redaction
+
+### 红灯与边界决策
+
+- 审计发现旧 `redact_secrets()` 仅用于 MockLLM 调用记录和 memory；真实 provider 出站消息/返回、AgentLoop 的第三方 LLM 边界、CLI 最终消息/异常，以及 run log 中的 `llm_response`、action 和 observation 没有共享脱敏层。
+- 先新增 common bearer/API-key/token/password、运行时已知 secret、嵌套日志、真实与 mock LLM、第三方 LLM 和 CLI 输出测试；首次专项收集因 `safecodeloop.redaction` 不存在出现 2 个错误。
+- 运行时已知值至少 8 字符才注册，避免把 `test` 等普通短词从诊断中全局替换；模式脱敏仍覆盖常见凭据格式。
+
+### 实现、复审与验证
+
+- 新增 `SecretRedactor` 和递归 `redact_value()`；字符串值、嵌套 list/tuple/set/dict 及字符串映射键均在副本中脱敏，不修改输入。
+- Mock/真实 LLM 均清理输入与输出；AgentLoop 在不信任的 LLM client 边界再次清理消息、响应和 metadata，因此自定义 client 不会成为旁路。
+- CLI 注册真实 provider key，统一清理结果、错误和审批原因；run log 在 JSON 序列化前一次性递归清理 final message、LLM response、action 和 observation。
+- 代码质量复审先发现带空格的引号 secret 只遮住首词，以及字典键可能泄漏；新增 2 个红灯测试后修正为完整引号值和键值都脱敏。
+- 对公开 `RunResult.steps[].observation` 继续复审时发现它仍保留工具原始输出；同时发现 `resume()` 的 guardrail return 缩进错误，使审批后继续执行允许动作时引用未定义 `next_id`。先加入 2 个失败测试，再统一清理公开 observation/恢复动作副本，并把 return 收回风险分支内部。
+- 脱敏专项最终 `10 passed`；受影响范围 `70 passed`；修正后全量 `195 passed, 2 skipped in 8.57s`。

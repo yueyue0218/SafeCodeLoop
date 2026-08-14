@@ -5,8 +5,9 @@ from safecodeloop.actions import Action, ActionParseError, parse_action
 from safecodeloop.approval import ApprovalError, ApprovalStore
 from safecodeloop.feedback import Validator
 from safecodeloop.guardrails import GuardrailEngine
-from safecodeloop.llm import LLMClient
+from safecodeloop.llm import LLMClient, LLMResponse
 from safecodeloop.memory import MemoryStore
+from safecodeloop.redaction import SecretRedactor, redact_value
 from safecodeloop.tools import ToolRegistry
 
 
@@ -58,6 +59,7 @@ class AgentLoop:
         approval_store: ApprovalStore | None = None,
         max_validations: int = 4,
         max_repeated_failures: int = 2,
+        redactor: SecretRedactor | None = None,
     ):
         if max_steps < 1:
             raise ValueError("max_steps must be at least 1")
@@ -75,6 +77,7 @@ class AgentLoop:
         self.approval_store = approval_store
         self.max_validations = max_validations
         self.max_repeated_failures = max_repeated_failures
+        self.redactor = redactor or SecretRedactor()
 
     def run(self, task: str) -> RunResult:
         steps: list[LoopStep] = []
@@ -85,7 +88,7 @@ class AgentLoop:
         repeated_failure_count = 0
 
         for index in range(self.max_steps):
-            response = self.llm.generate(messages)
+            response = self._generate(messages)
             try:
                 action = parse_action(response.content)
             except ActionParseError as exc:
@@ -156,6 +159,7 @@ class AgentLoop:
                     }
                     if approval_id is not None:
                         observation["approval_id"] = approval_id
+                    observation = redact_value(observation, redactor=self.redactor)
                     steps.append(
                         LoopStep(
                             index=index,
@@ -166,7 +170,7 @@ class AgentLoop:
                     )
                     return RunResult(
                         status=decision.status,
-                        final_message=decision.reason,
+                        final_message=self.redactor.redact_text(decision.reason),
                         steps=steps,
                         approval_id=approval_id,
                     )
@@ -232,6 +236,10 @@ class AgentLoop:
                     and self._is_code_change(str(action.arguments.get("path", "")))
                 ):
                     completion_blocker = "workspace changes require validation"
+            observation = redact_value(observation, redactor=self.redactor)
+            context_observation = redact_value(
+                context_observation, redactor=self.redactor
+            )
             steps.append(
                 LoopStep(
                     index=index,
@@ -292,6 +300,15 @@ class AgentLoop:
             observation = tool_result.to_observation(record.action.type)
             context_observation = observation
 
+        observation = redact_value(observation, redactor=self.redactor)
+        context_observation = redact_value(
+            context_observation, redactor=self.redactor
+        )
+        recorded_action = Action(
+            type=record.action.type,
+            arguments=redact_value(record.action.arguments, redactor=self.redactor),
+        )
+
         messages = self._initial_messages(task)
         messages.append(
             {
@@ -303,7 +320,7 @@ class AgentLoop:
             LoopStep(
                 index=0,
                 llm_response="[approved action resumed]",
-                action=record.action,
+                action=recorded_action,
                 observation={
                     **observation,
                     "approval_id": approval_id,
@@ -313,7 +330,7 @@ class AgentLoop:
         ]
 
         for index in range(1, self.max_steps + 1):
-            response = self.llm.generate(messages)
+            response = self._generate(messages)
             try:
                 action = parse_action(response.content)
             except ActionParseError as exc:
@@ -356,8 +373,16 @@ class AgentLoop:
                 }
                 if next_id:
                     guardrail_observation["approval_id"] = next_id
+                guardrail_observation = redact_value(
+                    guardrail_observation, redactor=self.redactor
+                )
                 steps.append(LoopStep(index=index, llm_response=response.content, action=action, observation=guardrail_observation))
-                return RunResult(decision.status, decision.reason, steps, approval_id=next_id)
+                return RunResult(
+                    decision.status,
+                    self.redactor.redact_text(decision.reason),
+                    steps,
+                    approval_id=next_id,
+                )
 
             if action.type == "run_validation" and validation_count >= self.max_validations:
                 control = {
@@ -389,6 +414,12 @@ class AgentLoop:
             else:
                 next_observation = next_result.to_observation(action.type)
                 next_context_observation = next_observation
+            next_observation = redact_value(
+                next_observation, redactor=self.redactor
+            )
+            next_context_observation = redact_value(
+                next_context_observation, redactor=self.redactor
+            )
             steps.append(LoopStep(index=index, llm_response=response.content, action=action, observation=next_observation))
             messages.append({"role": "system", "content": f"tool_result: {next_context_observation}"})
             if (
@@ -400,6 +431,15 @@ class AgentLoop:
                 return RunResult("repeated_validation_failure", "Repeated validation failure circuit opened.", steps)
 
         return RunResult("max_steps", "Reached max steps without finish action.", steps)
+
+    def _generate(self, messages: list[dict[str, str]]) -> LLMResponse:
+        safe_messages = redact_value(messages, redactor=self.redactor)
+        response = self.llm.generate(safe_messages)
+        return LLMResponse(
+            content=self.redactor.redact_text(response.content),
+            provider=response.provider,
+            metadata=redact_value(response.metadata, redactor=self.redactor),
+        )
 
     def _initial_messages(self, task: str) -> list[dict[str, str]]:
         messages = [

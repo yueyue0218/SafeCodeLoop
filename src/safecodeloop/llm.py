@@ -1,9 +1,10 @@
 import json
-import re
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+from safecodeloop.redaction import SecretRedactor, redact_secrets
 
 
 class LLMError(RuntimeError):
@@ -22,48 +23,41 @@ class LLMClient(Protocol):
         ...
 
 
-SECRET_PATTERNS = (
-    re.compile(r"(OPENAI_API_KEY\s*=\s*)([^\s]+)", re.IGNORECASE),
-    re.compile(r"\b(sk-[A-Za-z0-9_-]+)\b"),
-)
-
-
-def redact_secrets(text: str) -> str:
-    redacted = text
-    for pattern in SECRET_PATTERNS:
-        if pattern.groups >= 2:
-            redacted = pattern.sub(r"\1[REDACTED]", redacted)
-        else:
-            redacted = pattern.sub("[REDACTED]", redacted)
-    return redacted
-
-
-def redact_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
+def redact_messages(
+    messages: list[dict[str, str]], redactor: SecretRedactor | None = None
+) -> list[dict[str, str]]:
+    active = redactor or SecretRedactor()
     sanitized = []
     for message in messages:
         sanitized.append(
             {
                 **message,
-                "content": redact_secrets(str(message.get("content", ""))),
+                "content": active.redact_text(str(message.get("content", ""))),
             }
         )
     return sanitized
 
 
 class MockLLM:
-    def __init__(self, responses: list[str], provider: str = "mock"):
+    def __init__(
+        self,
+        responses: list[str],
+        provider: str = "mock",
+        redactor: SecretRedactor | None = None,
+    ):
         self._responses = list(responses)
         self.provider = provider
         self.calls: list[list[dict[str, str]]] = []
         self._index = 0
+        self._redactor = redactor or SecretRedactor()
 
     def generate(self, messages: list[dict[str, str]]) -> LLMResponse:
-        self.calls.append(redact_messages(messages))
+        self.calls.append(redact_messages(messages, self._redactor))
         if self._index >= len(self._responses):
             raise LLMError("mock LLM script exhausted")
 
         response = LLMResponse(
-            content=self._responses[self._index],
+            content=self._redactor.redact_text(self._responses[self._index]),
             provider=self.provider,
             metadata={"script_index": self._index},
         )
@@ -91,10 +85,15 @@ class OpenAICompatibleLLM:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self._transport = transport or urlopen
+        self._redactor = SecretRedactor([api_key])
 
     def generate(self, messages: list[dict[str, str]]) -> LLMResponse:
         payload = json.dumps(
-            {"model": self.model, "messages": messages, "stream": False}
+            {
+                "model": self.model,
+                "messages": redact_messages(messages, self._redactor),
+                "stream": False,
+            }
         ).encode("utf-8")
         request = Request(
             f"{self.base_url}/chat/completions",
@@ -135,7 +134,7 @@ class OpenAICompatibleLLM:
         if isinstance(usage, dict):
             metadata["usage"] = usage
         return LLMResponse(
-            content=content,
+            content=self._redactor.redact_text(content),
             provider="openai-compatible",
             metadata=metadata,
         )
