@@ -1,23 +1,45 @@
 # SafeCodeLoop 项目反思
 
-这次 A 类 Agent Harness 作业让我真正意识到，coding agent 不是“LLM 加提示词”，而是一套围绕 LLM 的工程系统。SafeCodeLoop 最终做成了一个 CLI-only 的迷你 harness：包含主循环、action parser、MockLLM、工具注册表、文件/命令工具、guardrail、feedback classifier、memory、config、credential 命令、CI、Dockerfile 和 release 打包脚本。项目规模不大，但覆盖了 agent harness 的关键外壳，也让我更清楚地理解了 Superpowers 方法论的价值和局限。
+## 1. 我真正改变的认识
 
-对我最有用的部分是先写 `SPEC.md` 和 `PLAN.md`。一开始我很容易把作业理解成普通应用或 WebUI 项目，但 SPEC 把方向固定为“带治理护栏和测试反馈闭环的 coding agent harness”。老师补充说明允许 CLI-only + release 后，PLAN 也及时调整，不再把 WebUI 当成 P0。这一步避免了范围失控，把时间集中到了作业 A 真正评分的机制上。
+项目开始时，我把 coding agent 的能力理解成“模型会不会写出正确代码”；做到后期，我认为更准确的问题是：“谁有权把模型的建议变成副作用，又由谁判定任务真的完成？”LLM 只能提出候选 action，parser、guardrail、approval 和 validation state machine 才拥有执行与完成的裁决权。SafeCodeLoop 的主要贡献因此不是多接几个工具，而是把“成功”从模型的自我声明改成可验证的工程事实：普通命令不等于验证，代码写入后必须取得新的 pass，失败后直接 `finish` 会被拒绝，重复失败还受到预算和熔断限制。
 
-第二个有用的部分是 task 拆分。T3.1 只做 action parser，T3.2 只做 MockLLM，T3.3 只做主循环骨架，T4 再接工具和护栏，T5 再做反馈、记忆、配置和凭据。这样每一步都有清楚的失败测试和验证命令。如果一开始把主循环、工具、护栏、反馈混在一起实现，代码很可能会变成一团，也很难解释每个机制到底在哪里。
+这个认识也改变了我的范围选择。通用要求一度让我以为必须做 WebUI；老师澄清 A 类允许 CLI-only + Release 后，我没有继续追求表面完整，而是把时间投入反馈控制、审批状态机、统一脱敏和分发验证。这个决定不是 AI 替我做的：AI 可以列出方案，但“什么值得用有限时间做深”必须由我承担。
 
-TDD 对这个项目来说更像放大器，而不是阻碍。它确实让早期速度变慢，因为每个模块都要先看到红灯，例如 `ModuleNotFoundError`、接口参数缺失、CLI 参数不支持等。但红灯让边界变清楚：parser 不执行工具，guardrail 必须在工具执行前发生，command tool 的失败要变成结构化结果而不是直接崩溃。T6.3 和 T6.4 尤其体现了 TDD 的价值：日志中必须真的出现 `feedback_kind: test_failure`、`feedback_kind: pass` 和 `status: blocked`，而不是只在 README 里口头描述。
+## 2. Superpowers：最有效的地方与形式化风险
 
-Subagent 工作流的经验是：它适合小颗粒度、边界清楚的任务，不适合长期无人监督。冷启动验证里，另一个 agent 能理解 T2.1/T2.2 的目标，但也暴露了构建后端、版本号来源、CLI 命令名、`python -m safecodeloop` 是否支持等歧义。这说明 subagent 能帮忙发现 SPEC/PLAN 的漏洞，但项目方向、交付路线、评分风险仍然需要人来判断。
+对我最有价值的技能是 brainstorming、writing-plans 和 TDD。brainstorming 的价值不在于替我生成一份很长的 SPEC，而在于逼我回答会改变架构的问题：移除真实 LLM 后还能测试什么？安装依赖应该 block 还是进入审批？测试失败后凭什么允许完成？冷启动时，我只把 SPEC 和 PLAN 交给 Gemini，它立即追问构建后端、版本号来源、console script 和模块入口。这说明作者脑中的“默认答案”不是规约；陌生 agent 需要猜测的地方，就是文档缺陷。
 
-SPEC/PLAN 的质量直接影响实现质量。一个典型例子是交付方式：通用要求里提到 WebUI 和部署 URL，但老师补充说明 A 类可以只交 CLI 和 release 链接。如果这个修正没有写进 SPEC/PLAN，后续就可能把大量时间花在 WebUI 上。另一个例子是 T6.4，最初“展示治理护栏 + 反馈闭环”这个描述还不够具体；后来验收标准被加强为同一条 demo 先失败、再修正通过、最后危险命令被拦截，这样才真正体现主要贡献机制。
+但 Superpowers 也容易形式化。早期 `ModuleNotFoundError` 式红灯只能证明我遵循了顺序，工程价值有限；真正有价值的红灯是会推翻设计假设的反例。例如 guardrail 深化时第一次出现 `43 failed`，暴露跨 shell 删除、复合命令、symlink 越界和配置规则未接线；统一脱敏复审又发现带空格的 secret、字典键和公开 observation 都可能泄漏。对我而言，TDD 不是“所有红灯都值得庆祝”，而是用尽可能强的反例迫使机制说明自己的边界。
 
-最有效的 prompt / context 策略不是简单说“帮我写代码”，而是给出 task 编号、相关文件、预期失败测试、验证命令和禁止猜测的边界。例如冷启动验证时，只给 `SPEC.md` 和 `PLAN.md`，要求不清楚就停下提问；实现阶段则要求先写失败测试，再补最小实现，再跑回归测试。这种上下文能让 AI 输出更可控，也能留下可审计证据。
+我对 Superpowers 的一个批判是：它隐含假设 SPEC 可以在实现前基本冻结。但 agent harness 的安全语义往往只有在集成后才显现，例如 `needs_approval` 最初只是停止状态，直到恢复流程出现，才暴露 action 绑定、篡改和重复消费问题。因此更合理的纪律不是“SPEC 写完后不再变化”，而是“每次变化必须由失败证据触发，并同步回写 SPEC、PLAN 和测试”。
 
-凭据和分发要求让我意识到，工程化不是附加项。凭据方面，项目实现了 `key status/set/clear`，状态输出会 mask key，测试用临时路径避免污染真实配置。但当前仍是本地 JSON fallback，不是 OS keyring，所以 README 必须诚实说明风险。分发方面，`.gitlab-ci.yml`、Dockerfile、release 脚本都迫使我区分“文件已提供”“命令已运行”“外部网络失败”“最终通过”。Docker CLI 已验证可用，但 build 因 Docker Hub 网络不可达未完成，这种限制也应该如实记录，而不是假装通过。
+## 3. Subagent、任务粒度与上下文工程
 
-如果重做，我会更早建立提交节奏和最终清单。前期主要关注实现，后期集中补 README、release、Docker 状态和日志，压力会比较大。更好的做法是每个 phase 完成后立即更新 PLAN、AGENT_LOG 和 README 草稿。另一个会提前处理的是凭据存储，如果时间更多，我会优先接 Windows Credential Manager 或 Python keyring，而不是只做 JSON fallback。
+我没有为每次 subagent 会话可靠记录墙钟时间，因此不想编造“能自主运行几小时”的数字。更可审计的尺度是任务闭环：它最稳定的自治单位是一个边界窄、可以独立判定完成的行为，通常涉及一个测试文件、一个主要实现文件和一条专项命令。Action parser、MockLLM、文件工具这类任务可以让它独立完成一轮红—绿—回归；一旦任务同时跨越 loop、持久化、安全和 CLI，agent 很容易局部正确却破坏系统不变量。approval resume 绕过完成门槛、恢复分支引用未定义状态，都是跨路径复审才发现的问题。
 
-我对 Superpowers 方法论的批判是：它很有用，但容易形式化。SPEC、PLAN、AGENT_LOG 如果只是为了凑文件，会变成负担；只有当它们真正改变实现顺序、暴露歧义、约束测试和记录取舍时才有价值。这个项目中，方法论最有价值的地方不是“写了很多文档”，而是让 AI 协作变得可验证、可复现、可追责。
+我最有效的 prompt 不是“把这个功能做完整”，而是明确 task 编号、只读上下文、允许修改的文件、预期红灯、验证命令和暂停条件。我还会写清禁止事项，例如不新增高层 agent runner、不放宽 guardrail、不把真实 key 放进测试。上下文越多不一定越好；把整个仓库和长对话都交给 agent，反而会让关键约束被噪声淹没。最优粒度是让它知道局部契约，同时由我在合并前检查系统级不变量。
 
-总体来说，SafeCodeLoop 让我理解到，AI coding 的核心不是让模型多写代码，而是建立一个能解析模型输出、约束危险动作、接收客观反馈、记录过程并最终可分发的工程系统。这个项目虽然小，但它把 coding agent 的关键机制做成了可以运行、可以测试、可以审查的形式。
+## 4. 人工评审真正增加价值的地方
+
+这次项目中，最重要的人工工作不是补几行代码，而是拒绝“看起来能用”的方案。凭据第一版使用明文 JSON，我决定生产路径改为 OS keyring，并拒绝 keyring 失败后静默降级；审批第一版只用普通 SHA-256，我在质量复审后改成由独立 key 签名的 HMAC，并规定批准在执行前一次性消费；综合演示没有为了展示审批去执行真实安装或发布，而是用无害 `echo` 经过相同状态机。安全不是功能数量，而是每次失败时系统是否选择更保守的方向。
+
+反馈闭环也经历了同样的人工修正。最初所有 `run_command` 都被当作 validation，意味着 `git status` 成功也可能被解释为质量通过。我要求在 action 协议层加入显式 `run_validation`。之后又用失败后 `finish`、超长输出和 resume 旁路反例，逐步加入完成门槛、有界反馈、证据 hash、验证预算和熔断器。这些决定共同说明：我没有把 AI 生成的实现或“测试通过”直接视为正确，而是持续追问测试究竟证明了什么。
+
+## 5. 凭据与分发改变了我的证据观
+
+凭据要求让我理解“不要打印 key”远远不够。secret 可能出现在真实 provider 的出站消息、模型返回、异常、action 参数、memory、CLI 和嵌套日志中，所以最终需要共享的递归 redaction 边界，而不是在几个输出点零散替换字符串。
+
+分发要求则让我区分四层证据：文件存在、命令执行、干净环境通过、公开产物与最终 commit 对齐。wheel 的第一次完全断网安装失败，并不是打包错误，而是它正确声明的 `keyring` 依赖没有缓存；这迫使我明确“可安装”不等于“完全自包含”。我还两次遇到 Release 页面存在、tag 或 asset 却落后于 main 的情况，因此现在认为 release URL 本身不是完成证据，必须同时检查 build info、SHA-256、干净安装和 tag/commit 一致性。
+
+当前全量回归为 `213 passed, 2 skipped`；两个跳过项来自 Windows 账户不能创建 symlink，不能被包装成全平台已经验证。安装后的 wheel 能运行 `safecodeloop demo main-contribution`，一次展示 `test_failure → pass`、`pending → approved → consumed` 和最终 success，而且不依赖仓库、pytest、网络或 API key。这个演示比功能列表更有说服力，因为评审者能复现同一条因果链。
+
+## 6. 如果重做，以及我的最终判断
+
+如果重做，我会从第一天就使用真实 worktree/PR，把威胁模型、完成条件和 release manifest 提前，而不是后期集中补齐。早期线性提交虽然保留了 TDD 日志，却削弱了独立评审证据；文档也曾多次落后于实现。另一方面，我不会机械地把任务切得无限小，因为过细会让 subagent 只优化局部测试，看不到恢复路径和安全边界。更好的做法是“小步实现、阶段性系统反例、每次合并同步文档”。
+
+我最终对 Superpowers 的评价是：它能提供纪律，但不能提供判断。它可以提醒我写 SPEC、做 TDD、请求 review，却不能判断一个红灯有没有价值、一个 pass 是否足以证明安全、一个 release 是否真的对应最终代码。工程师在 AI 协作中的核心价值，是定义不可绕过的不变量，设计足以推翻当前实现的反例，并对最终证据负责。SafeCodeLoop 仍不是 OS 级沙箱，规则也无法覆盖所有 shell 混淆；承认这些边界，比把项目描述成“安全的自主 coding agent”更符合我对工程责任的理解。
+
+## AI 使用说明
+
+本项目在需求梳理、候选代码与测试生成、事实核对和文字润色中使用了 AI 辅助。本文正文由项目作者曹潇月本人撰写并重写，AI 仅辅助核对项目记录和润色文字；文中的判断、取舍和最终责任归项目作者本人。

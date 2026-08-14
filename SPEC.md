@@ -241,10 +241,11 @@ SafeCodeLoop 是一个面向编程任务的迷你 Coding Agent Harness。它不�
 
 人工审批状态机：
 
-- 风险动作在执行前创建 `pending` 审批记录，使用 OS keyring 中独立保存的签名 key 对 canonical action 生成 HMAC-SHA256 签名。
+- 风险动作在执行前创建 `pending` 审批记录，使用 OS keyring 中独立保存的签名 key 生成稳定的 canonical action hash，并对包含 approval ID、action、action hash、reason、status、run ID、step ID、rule ID 和时间戳的完整记录信封生成独立 HMAC-SHA256 签名。
 - `approve` / `reject` 可在后续 CLI 进程中改变审批状态。
-- `resume` 在执行前重新验证记录完整性与 action 签名，并一次性消费批准。
-- 已拒绝、未批准、已消费、动作不匹配或记录被篡改时安全失败。
+- 每次合法状态转换更新 `updated_at` 并重新签名；`resume` 在执行前验证完整记录与 action hash，并一次性消费批准。
+- 已拒绝、未批准、已消费、动作不匹配、记录 ID 被替换、字段类型非法或任一签名字段被篡改时安全失败。
+- 缺少完整记录签名的旧审批记录不自动迁移，必须重新创建。
 - 只持久化恢复所需的最小审批状态，不保存完整 LLM 对话或凭据。
 
 ### 5.6 反馈闭环
@@ -355,7 +356,7 @@ WebUI：
 
 | NFR ID | 可测量要求 | 验收方法 |
 |---|---|---|
-| `NFR-PERF-01` | 203 项离线测试不访问真实 LLM 或网络；在本项目 Windows/Python 3.11 基线中目标 30 秒内完成（当前 7.92 秒，201 passed、2 项 symlink 用例因 Windows 权限跳过） | 断网或不配置 key 后运行 `python -m pytest`，必须全部通过或仅平台能力用例明确跳过 |
+| `NFR-PERF-01` | 215 项离线测试不访问真实 LLM 或网络；在本项目 Windows/Python 3.11 基线中目标 30 秒内完成（当前 8.83 秒，213 passed、2 项 symlink 用例因 Windows 权限跳过） | 断网或不配置 key 后运行 `python -m pytest`，必须全部通过或仅平台能力用例明确跳过 |
 | `NFR-PERF-02` | 单次进入模型上下文的 validation details 默认不超过 1200 字符 | 长输出测试断言 `details` 长度、截断标志、原长度与 SHA-256 |
 | `NFR-PERF-03` | 默认单次 run 最多 5 个 agent steps、4 次 validations；相同失败连续 2 次打开熔断 | 加载默认 config，并通过 loop/config 单测验证终态 |
 | `NFR-PERF-04` | 本地命令默认 10 秒 timeout；真实 provider 请求默认 60 秒 timeout | command/LLM stub 测试断言 timeout 参数和结构化错误 |
@@ -382,7 +383,7 @@ SafeCodeLoop 采用以下信任假设：
 | `THR-02` | 通过绝对路径、`..` 等方式访问 workspace 外文件 | 路径规范化后执行 containment check，越界读写拒绝 | `tests/test_file_tools.py` | 符号链接、挂载点及平台路径语义仍需操作系统级隔离补强 |
 | `THR-03` | 将风险命令伪装成 validation 绕过普通命令治理 | `run_command` 与 `run_validation` 共享同一 guardrail；validation 只改变反馈语义，不改变权限 | `tests/test_loop_tools_guardrails.py`、`tests/test_feedback_loop.py` | 自定义安全命令仍可能执行其内部包含的高风险逻辑 |
 | `THR-04` | API key 经模型上下文/响应、CLI 异常、action、observation、run log 或 memory 泄露 | hidden input、OS keyring、共享递归 redactor；真实 provider 的已加载 key 作为运行时已知 secret 注册；生产 CLI 无明文文件 fallback | `tests/test_redaction.py`、`tests/test_llm.py`、`tests/test_cli_run.py`、`tests/test_loop.py`、`tests/test_memory.py` | 模式无法识别所有未知专有 secret；短于 8 字符的值为避免误伤不做精确注册；已被外部进程或系统管理员攻破的主机不在保护范围内 |
-| `THR-05` | 审批文件被改写、换参或复制后重放 | canonical action + HMAC-SHA256；签名 key 独立存于 keyring；批准在工具调用前一次性消费 | `tests/test_approval.py` | 本地审批文件仍可能暴露 action 参数，因此 `.safecodeloop/` 必须保持本地并排除出 Git |
+| `THR-05` | 审批文件被改写、换参、改状态、替换 ID 或复制后重放 | canonical action hash + 完整记录信封 HMAC-SHA256；ID、reason、status、run/step/rule 和时间均纳入签名；每次状态转换重新签名并在工具调用前一次性消费 | `tests/test_approval.py`、`tests/test_loop_tools_guardrails.py` | 本地文件仍可能暴露 action 参数；能回滚整个文件到先前有效签名快照的特权攻击者超出本地文件状态机的单调性保证，因此 `.safecodeloop/` 必须保持本地并排除出 Git |
 | `THR-06` | 模型在代码写入或 validation 失败后直接声明成功 | harness 根据真实工具事件维护 completion gate；新的客观 pass 前拒绝 `finish` | `tests/test_loop.py`、`tests/test_feedback_loop.py` | 配置错误或覆盖不足的 validator 可能给出不充分的 pass |
 | `THR-07` | 超长 stdout/stderr 挤占上下文或把敏感内容反射给模型 | 除 secret 替换外的完整 evidence 留在日志；模型只接收有界脱敏摘要和 hash/reference；run log 序列化前递归脱敏 | `tests/test_feedback.py`、`tests/test_feedback_loop.py`、`tests/test_redaction.py`、`tests/test_cli_run.py` | 日志本身仍需由操作者控制文件权限和保留周期 |
 | `THR-08` | 无限步骤、无限验证或相同失败重复消耗资源 | `maxSteps`、命令 timeout、`maxValidations` 和重复失败熔断器 | `tests/test_loop.py`、`tests/test_command_tool.py`、`tests/test_feedback_loop.py` | 单次允许命令仍可能消耗较多 CPU、内存或磁盘 |
@@ -555,6 +556,11 @@ Agent Loop ---> LLM Adapter ---> External Provider |
 - `actionHash`
 - `reason`
 - `status`：`pending` / `approved` / `rejected` / `consumed`
+- `runId`
+- `stepId`
+- `ruleId`
+- `createdAt` / `updatedAt`
+- `recordSignature`：覆盖上述身份、动作、原因、状态与审计字段的 HMAC-SHA256
 
 ### FeedbackEvent
 
@@ -870,4 +876,5 @@ docker run --rm -v "${PWD}\demo-config.json:/app/demo-config.json:ro" safecodelo
 - Guardrail 是确定性治理层，不等价于操作系统级安全沙箱，无法证明覆盖所有 shell 混淆形式。
 - OpenAI-compatible adapter 的真实运行依赖供应商网络、凭据、模型可用性和响应兼容性；核心验收不依赖该路径。
 - OS keyring 的可用性依赖目标系统；不可用时涉及凭据或签名的路径安全失败。
+- 审批完整记录签名可检测内容篡改与换 ID 复制，但不提供抵抗整个先前有效签名文件快照回滚的外部单调计数器。
 - Memory Store 是适合教学 harness 的轻量结构化存储，不面向大型多仓库语义检索。

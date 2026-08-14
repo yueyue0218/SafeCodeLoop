@@ -5,12 +5,12 @@
 ## 0. 当前执行基线（2026-08-14）
 
 - 发布准备提交 `5418cc2` 已通过 PR #8 合入 `main`；最终发布收口在 `release/v0.1.0-finalize` 分支完成。
-- 当前本地全量回归：`201 passed, 2 skipped`（symlink 用例在当前 Windows 权限下跳过）。
+- 当前本地全量回归：`213 passed, 2 skipped`（symlink 用例在当前 Windows 权限下跳过）。
 - Docker：`safecodeloop:0.1.0` 已成功构建；容器内 `--help`、`--version` 和完整 MockLLM 反馈演示通过。
 - 分发：GitHub Release `v0.1.0` 的 tag 与最终 `main` 提交对齐；Release 提供源码 ZIP、wheel、sdist 和 `SHA256SUMS`，并已按 SPEC §10.3 完成 wheel 干净环境安装与 CLI 冒烟。
 - 凭据：生产 CLI 使用 OS keyring；明文文件 backend 仅供测试显式注入。
 - 真实模型：OpenAI-compatible adapter 已实现；核心验收仍使用离线 MockLLM。
-- 本文各 task 中的较小测试数字是该 task 完成当时的历史回归结果；当前开发基线统一以上述 `201 passed, 2 skipped` 为准，`v0.1.0` Release 验收基线仍为 `116 passed`。
+- 本文各 task 中的较小测试数字是该 task 完成当时的历史回归结果；当前开发基线统一以上述 `213 passed, 2 skipped` 为准，`v0.1.0` Release 验收基线仍为 `116 passed`。
 
 ## 1. 锁定技术路线
 
@@ -1326,6 +1326,24 @@ TDD 与实现：
 - 全新虚拟环境安装 wheel 后，一键 demo 退出 0；生成的 audit JSON 经 parser 验证为 schema version 1、test_failure → pass、pending → approved → consumed 和 success。
 - 全量回归：`201 passed, 2 skipped in 7.92s`；跳过项仍仅为当前 Windows 账户不能创建 symlink。
 - 提交前仍需完成 diff 审查与敏感信息扫描。
+
+## 10.2 T15.5 审批完整记录签名收口
+
+状态：本地实现与回归已完成，尚未提交、推送或进入 CI。
+
+目标：修复 action-only HMAC 无法检测审批 `status`、`reason` 等元数据篡改的问题，并补齐高分计划要求的运行、步骤、规则和时间审计字段。
+
+TDD 与复审证据：
+
+- 首轮红灯：新增 status、reason、记录 ID 与状态转换签名测试，`4 failed, 6 passed`。
+- 最小实现：action hash 保持稳定；新增完整记录信封签名，合法状态转换重新签名，专项 `10 passed`。
+- 代码质量复审红灯：非字符串签名触发未受控 `TypeError`，新增测试后为 `1 failed, 10 passed`；补充持久化字段类型校验后 `11 passed`。
+- 审计元数据红灯：run/step/rule/时间字段保护为 `6 failed, 10 passed`；实现后审批专项 `16 passed`。
+- 主循环接线红灯：规则和步骤未进入记录，`2 failed, 8 passed`；传入真实 run ID、step ID、rule ID 后通过。
+- 综合审计 JSON 增加 reason、run/step/rule 与时间字段。
+- 最终本地全量回归：`213 passed, 2 skipped in 8.83s`；跳过项仍仅为当前 Windows 账户不能创建 symlink。
+
+安全边界：完整记录签名检测字段修改和换 ID 复制；对整个先前有效签名文件快照的回滚仍需外部可信单调状态，本教学 harness 将其作为明确剩余风险。
 
 ## 11. 最终提交清单
 

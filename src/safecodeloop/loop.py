@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Any
+from uuid import uuid4
 
 from safecodeloop.actions import Action, ActionParseError, parse_action
 from safecodeloop.approval import ApprovalError, ApprovalStore
@@ -80,6 +81,7 @@ class AgentLoop:
         self.redactor = redactor or SecretRedactor()
 
     def run(self, task: str) -> RunResult:
+        run_id = uuid4().hex
         steps: list[LoopStep] = []
         messages = self._initial_messages(task)
         validation_count = 0
@@ -149,7 +151,13 @@ class AgentLoop:
                 if decision.status != "allowed":
                     approval_id = None
                     if decision.status == "needs_approval" and self.approval_store is not None:
-                        approval_id = self.approval_store.create(action, decision.reason).id
+                        approval_id = self.approval_store.create(
+                            action,
+                            decision.reason,
+                            run_id=run_id,
+                            step_id=index,
+                            rule_id=decision.rule_id,
+                        ).id
                     observation = {
                         "kind": "guardrail_result",
                         "status": decision.status,
@@ -363,7 +371,13 @@ class AgentLoop:
             if decision is not None and decision.status != "allowed":
                 next_id = None
                 if decision.status == "needs_approval":
-                    next_id = self.approval_store.create(action, decision.reason).id
+                    next_id = self.approval_store.create(
+                        action,
+                        decision.reason,
+                        run_id=record.run_id,
+                        step_id=index,
+                        rule_id=decision.rule_id,
+                    ).id
                 guardrail_observation = {
                     "kind": "guardrail_result",
                     "status": decision.status,
