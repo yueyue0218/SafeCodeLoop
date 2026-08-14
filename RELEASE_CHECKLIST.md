@@ -24,9 +24,9 @@
 Expected output:
 
 ```text
-release\SafeCodeLoop-0.1.0.zip
-release\safecodeloop-0.1.0-py3-none-any.whl
-release\safecodeloop-0.1.0.tar.gz
+release\SafeCodeLoop-0.2.0.zip
+release\safecodeloop-0.2.0-py3-none-any.whl
+release\safecodeloop-0.2.0.tar.gz
 release\SHA256SUMS
 ```
 
@@ -70,5 +70,5 @@ release\SHA256SUMS
 - [x] Generate SHA-256 checksums for the zip, wheel, and source distribution.
 - [x] Install the wheel in a new virtual environment and run `--help` and `--version`.
 - [x] Run the one-command main-contribution demo from the isolated wheel environment.
-- [x] Point `v0.1.0` at the final `main` commit and attach all four artifacts to the GitHub Release.
-- [x] Verify the public Release URL without relying on a repository checkout.
+- [ ] Create `v0.2.0` from the final `main` commit and attach all four artifacts to the GitHub Release.
+- [ ] Verify the public `v0.2.0` Release URL without relying on a repository checkout.
