@@ -1215,3 +1215,29 @@ TDD 与设计判断：
 - sdist 文件清单包含 `LICENSE`、`README.md`、`THIRD_PARTY_NOTICES.md`、`MANIFEST.in` 和元数据测试。
 - 新建虚拟环境并从 wheel 安装全部声明依赖；`safecodeloop --help`、`--version` 通过，安装后 metadata 再次读取为曹潇月 / MIT / LICENSE。
 - 全量回归：`199 passed, 2 skipped in 8.61s`；跳过项仍仅为当前 Windows 账户不能创建 symlink。
+
+## 2026-08-14 23:00 · T15.3 · 一条命令综合机制演示
+
+### 缺口与设计边界
+
+- 高分计划要求助教用 `safecodeloop demo main-contribution` 一次看到反馈修正、风险治理、人工决策、action hash、状态转换和结构化审计。
+- 审计发现旧 `demo` parser 只是占位符；已有低层 Demo 3 需要手动拼接多个参数，最终只展示危险动作 blocked，没有进入可恢复审批状态机。
+- 为确保安装后的 wheel 也能运行，新演示逻辑放入 `src/safecodeloop/demo.py`，不依赖仓库根目录 `demos/` 文件、pytest、网络或 API key。
+
+### TDD 与实现判断
+
+- 先新增批准与拒绝两条 CLI 测试；初始结果 `2 failed`，均因 parser 不识别 `main-contribution`、`--decision` 和 `--output-dir`。
+- 默认路径真实运行 MockLLM write → validation test_failure → correction → pass → needs_approval；随后 approve 并通过 AgentLoop.resume 一次性消费原 action，最终 success。
+- reject 路径只执行 pending → rejected，不恢复待审批 action。
+- 风险决策使用 demo-specific policy 管理无害的本地 `echo`，既展示配置规则、HMAC action hash 和真实状态机，又避免为了演示而安装、发布或访问外部系统。
+- demo-only ApprovalStore 每次生成临时随机 HMAC key，不调用生产 OS keyring，也不将签名 key 写入仓库或审计文件；完整结构经共享 redactor 后写入 JSON。
+- 加强测试时曾错误假设 command stdout 位于 observation 顶层；实际结构遵循 ToolResult 的 `data.stdout`。读取真实 audit 后修正测试，没有为迎合断言改坏统一 observation schema。
+- 专项转绿 `2 passed`；CLI、旧综合 demo、Approval 与 Feedback 受影响范围 `21 passed`。
+
+### 分发与最终验证
+
+- 真实执行默认 `python -m safecodeloop demo main-contribution`，输出严格为 feedback、approval transitions、action hash、final status 和 audit path 五项摘要，退出 0。
+- `python -m build --outdir .tmp-t15-demo-build` 成功，sdist 与 wheel 均包含 `safecodeloop/demo.py` 和 CLI 修改。
+- 在全新 `.tmp-t15-demo-venv` 中安装 wheel 后再次运行一键 demo，不依赖仓库 `demos/`、pytest、网络调用或 API key；退出 0。
+- 对安装后生成的 JSON 做真实解析，得到 schema version 1、`test_failure -> pass`、`pending -> approved -> consumed` 和 `success`。
+- 全量回归：`201 passed, 2 skipped in 7.92s`；跳过项仍仅为当前 Windows 账户不能创建 symlink。

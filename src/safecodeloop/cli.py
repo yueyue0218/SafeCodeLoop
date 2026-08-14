@@ -9,6 +9,7 @@ from safecodeloop import __version__
 from safecodeloop.approval import ApprovalError, ApprovalStore
 from safecodeloop.config import ConfigError, load_config
 from safecodeloop.credentials import CredentialError, CredentialStore
+from safecodeloop.demo import DemoError, run_main_contribution_demo
 from safecodeloop.feedback import Validator
 from safecodeloop.guardrails import GuardrailEngine
 from safecodeloop.llm import LLMError, MockLLM, OpenAICompatibleLLM
@@ -71,7 +72,20 @@ def build_parser():
         command_parser.add_argument("approval_id")
         command_parser.add_argument("--workspace", default=".")
 
-    subparsers.add_parser("demo", help="Run deterministic mock-LLM demos.")
+    demo_parser = subparsers.add_parser(
+        "demo", help="Run deterministic mock-LLM demos."
+    )
+    demo_parser.add_argument("demo_name", choices=("main-contribution",))
+    demo_parser.add_argument(
+        "--decision",
+        choices=("approve", "reject"),
+        default="approve",
+        help="Choose the human decision at the approval boundary.",
+    )
+    demo_parser.add_argument(
+        "--output-dir",
+        help="Directory for the isolated workspace and structured audit JSON.",
+    )
     return parser
 
 
@@ -85,7 +99,27 @@ def main(argv=None):
         return _handle_run_command(args)
     if args.command == "approval":
         return _handle_approval_command(args, parser)
+    if args.command == "demo":
+        return _handle_demo_command(args)
 
+    return 0
+
+
+def _handle_demo_command(args) -> int:
+    try:
+        audit, audit_path = run_main_contribution_demo(
+            decision=args.decision,
+            output_dir=args.output_dir,
+        )
+    except (DemoError, OSError, ValueError) as exc:
+        print(f"demo error: {redact_secrets(str(exc))}")
+        return 2
+
+    print(f"feedback: {' -> '.join(audit['feedback_sequence'])}")
+    print(f"approval: {' -> '.join(audit['approval']['transitions'])}")
+    print(f"action_hash: {audit['approval']['action_hash']}")
+    print(f"final_status: {audit['final_status']}")
+    print(f"audit_log: {audit_path}")
     return 0
 
 

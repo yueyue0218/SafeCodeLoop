@@ -5,12 +5,12 @@
 ## 0. 当前执行基线（2026-08-14）
 
 - 发布准备提交 `5418cc2` 已通过 PR #8 合入 `main`；最终发布收口在 `release/v0.1.0-finalize` 分支完成。
-- 当前本地全量回归：`199 passed, 2 skipped`（symlink 用例在当前 Windows 权限下跳过）。
+- 当前本地全量回归：`201 passed, 2 skipped`（symlink 用例在当前 Windows 权限下跳过）。
 - Docker：`safecodeloop:0.1.0` 已成功构建；容器内 `--help`、`--version` 和完整 MockLLM 反馈演示通过。
 - 分发：GitHub Release `v0.1.0` 的 tag 与最终 `main` 提交对齐；Release 提供源码 ZIP、wheel、sdist 和 `SHA256SUMS`，并已按 SPEC §10.3 完成 wheel 干净环境安装与 CLI 冒烟。
 - 凭据：生产 CLI 使用 OS keyring；明文文件 backend 仅供测试显式注入。
 - 真实模型：OpenAI-compatible adapter 已实现；核心验收仍使用离线 MockLLM。
-- 本文各 task 中的较小测试数字是该 task 完成当时的历史回归结果；当前开发基线统一以上述 `199 passed, 2 skipped` 为准，`v0.1.0` Release 验收基线仍为 `116 passed`。
+- 本文各 task 中的较小测试数字是该 task 完成当时的历史回归结果；当前开发基线统一以上述 `201 passed, 2 skipped` 为准，`v0.1.0` Release 验收基线仍为 `116 passed`。
 
 ## 1. 锁定技术路线
 
@@ -65,7 +65,8 @@
 | 严格 Action Schema | `feat/t10-action-schema` | `976a336` | PR #10 / `f775162` | 唯一 JSON action、严格字段/类型/大小上限、歧义 fail closed；全量 `132 passed` |
 | Guardrail 对抗强化 | `feat/t11-guardrail-hardening` | `af886c5` | PR #11 / `adc44aa` | 跨 shell 绕过矩阵、稳定规则元数据、配置接线和路径/敏感文件治理；全量 `176 passed, 2 skipped` |
 | 统一 Secret Redaction | `feat/t9-unified-secret-redaction` | `8ddac8d` | PR #12 / `4788af6` | 共享递归脱敏层覆盖模型、AgentLoop、CLI 和 run log；全量 `195 passed, 2 skipped` |
-| 分发元数据与许可证 | `feat/t15-distribution-metadata` | 本分支提交 | 待创建 PR | MIT、作者曹潇月、PEP 639 元数据、直接依赖许可审计与构建产物验证 |
+| 分发元数据与许可证 | `feat/t15-distribution-metadata` | `f36aaf9` | PR #13 / `9b92d01` | MIT、作者曹潇月、PEP 639 元数据、直接依赖许可审计与构建产物验证 |
+| 一条命令综合机制演示 | `feat/t15-integrated-demo` | 本分支提交 | 待创建 PR | 安装后运行真实 feedback + guardrail + approval 状态机并生成结构化审计 JSON |
 
 ### 2.3 两阶段评审纪律
 
@@ -1299,6 +1300,32 @@ TDD 与实现：
 - sdist 包含 `LICENSE`、`README.md`、`THIRD_PARTY_NOTICES.md` 和 `MANIFEST.in`。
 - 全新虚拟环境从 wheel 安装成功，`safecodeloop --help` 和 `--version` 退出 0。
 - 全量回归：`199 passed, 2 skipped in 8.61s`；跳过项仍仅为当前 Windows 账户不能创建 symlink。
+
+## 10.1 T15.3 一条命令综合机制演示
+
+状态：本地实现与全部验收完成，待创建并合并 PR。
+
+目标：让助教只运行 `safecodeloop demo main-contribution`，即可看到主要贡献及其与治理审批的组合行为。
+
+TDD 与实现：
+
+- 先新增 `tests/test_cli_demo.py`；首次运行 `2 failed`，证明旧 `demo` 仅为空子命令，不接受演示名、决策和输出目录。
+- 新增可随 wheel 安装的 `safecodeloop.demo`，直接复用真实 AgentLoop、MockLLM、工具、Validator、GuardrailEngine 和 ApprovalStore，不依赖仓库外部 demo 文件。
+- 默认路径演示错误实现、`test_failure`、修正、`pass`、策略要求审批、`pending -> approved -> consumed` 和成功恢复。
+- `--decision reject` 演示 `pending -> rejected`，不恢复、不执行待审批动作。
+- 使用无害本地命令承载 demo-specific 审批策略，避免安装依赖、访问网络或修改外部状态；演示审批存储每次生成临时 demo-only HMAC key，不访问生产 OS keyring，也不在仓库或审计文件中保存该 key。
+- 结构化审计 JSON 保存完整 action、observation、feedback sequence、rule id、action hash、状态转换和终态；终端只显示五行摘要。
+- GitHub Actions 的隔离 wheel smoke 增加一键 demo，防止 editable install 或仓库相对路径掩盖分发缺陷。
+
+验证：
+
+- 初始红灯：`2 failed`。
+- 默认批准与拒绝专项：`2 passed`。
+- CLI、旧综合 demo、审批和反馈相关范围：`21 passed`。
+- wheel/sdist 构建成功，`safecodeloop.demo` 同时进入两类产物。
+- 全新虚拟环境安装 wheel 后，一键 demo 退出 0；生成的 audit JSON 经 parser 验证为 schema version 1、test_failure → pass、pending → approved → consumed 和 success。
+- 全量回归：`201 passed, 2 skipped in 7.92s`；跳过项仍仅为当前 Windows 账户不能创建 symlink。
+- 提交前仍需完成 diff 审查与敏感信息扫描。
 
 ## 11. 最终提交清单
 
